@@ -77,12 +77,12 @@ Add this to CSS
     font-weight: bold;
     text-align: center;
     margin-bottom: 5px;
-	cursor: pointer; 
+    cursor: pointer; 
 }
 
 #coordscroll {
-    overflow: auto;
-    overflow-wrap: normal;
+    overflow: visible;
+    overflow-wrap: anywhere;
     bottom: 0px;
 }
 
