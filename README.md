@@ -27,7 +27,7 @@ Extra feature: Lets you download all your unlocked progress from localStorage.
 
 I should ask the creator, Nico Disseldorp, for guidance, permission, and suggestions...
 
-Todo: Ah, I also need to add toggle for the logger like the sidebar...
+Todo: Ah, I also need to add toggle for the logger like the sidebar... Update: done.
 
 ## How to install for now:
 
@@ -53,6 +53,7 @@ Between existing scripts, put it before init.js:
 ```
 	<script src="./ANCIENT GREEK GEOMETRY_files/coord_logger.js"></script>
 	<script src="./ANCIENT GREEK GEOMETRY_files/local_storage_download.js"></script>
+	<script src="./ANCIENT GREEK GEOMETRY_files/coordbartoggle.js"></script>
   <script src="./ANCIENT GREEK GEOMETRY_files/init.js.download"></script>
 ```
 Add this to CSS
@@ -76,6 +77,7 @@ Add this to CSS
     font-weight: bold;
     text-align: center;
     margin-bottom: 5px;
+	cursor: pointer; 
 }
 
 #coordscroll {
