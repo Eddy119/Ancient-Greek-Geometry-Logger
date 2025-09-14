@@ -73,9 +73,38 @@ function logNewChanges(label, actionTag) {
 	let newEntries = [];
 	for (let i = lastChangesLength; i < changes.length; i++) {
 		const ch = changes[i];
-		if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
-			console.log(`[changes new after ${label}]`, i, ch);
-			newEntries.push(ch);
+		if (!ch) continue;
+		let filtered = null;
+		if (ch.type === 'arc') {
+			filtered = {
+				type: ch.type,
+				name: ch.name,
+				centre: ch.obj?.centre,
+				edge: ch.obj?.edge,
+				radius: ch.obj?.radius,
+				a: ch.a,
+				b: ch.b
+			};
+		} else if (ch.type === 'realline') {
+			filtered = {
+				type: ch.type,
+				name: ch.name,
+				point1: ch.obj?.point1,
+				point2: ch.obj?.point2,
+				angle: ch.obj?.angle,
+				length: ch.obj?.length,
+				a: ch.a,
+				b: ch.b
+			};
+		} else if (ch.type === 'newlayer') {
+			filtered = {
+				type: ch.type,
+				layer: layerCount,
+			};
+		}
+
+		if (filtered) {
+			newEntries.push(filtered);
 		}
 	}
 	lastChangesLength = changes.length;
