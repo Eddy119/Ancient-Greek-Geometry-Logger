@@ -16,6 +16,6 @@ modules.coordbartoggle = (function() {
     }
   };
   header.addEventListener('click', toggle);
-  footer.addEventListener('click', toggle);
+  // footer.addEventListener('click', toggle);
   return coordbartoggle;
 }());
