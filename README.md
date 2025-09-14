@@ -3,6 +3,8 @@ Logs info for constructions for https://sciencevsmagic.net/geo/ by Nico Disseldo
 
 See also: https://gist.github.com/mrflip/a973b1c60f4a38fc3277ddd57ce65b28 for solutions and my rambling
 
+I know AGPL is overkill, I'll deal with it later
+
 I'll publish solutions here too but I want to add details like the authors etc
 
 I’m currently implementing a construction logger for the game, with AI assistance. Aims:
