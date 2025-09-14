@@ -151,24 +151,51 @@ geo.resetall = function() {
 
 geo.undo = function() {
 	console.log('[undo hook]');
-	// remove last action group (including loadhash if it was the last one)
-	if (actionGroups.length > 0) {
-		const indices = actionGroups.pop();
-		const lastEntry = logEntries[indices[0]];
-		// only decrement moveCount if this wasn't a layer action
-		if (lastEntry && !lastEntry.startsWith('[newlayer') && !lastEntry.includes('loadhash')) {
+	if (actionGroups.length === 0) return original_undo.apply(this, arguments);
+
+	// Start from the end and find the last real action (not loadhash)
+	let undoIndex = actionGroups.length - 1;
+	while (undoIndex >= 0) {
+		const indices = actionGroups[undoIndex];
+		const firstEntry = logEntries[indices[0]] || "";
+		if (!firstEntry.includes('loadhash')) break;
+		undoIndex--;
+	}
+
+	if (undoIndex >= 0) {
+		// Remove the last real action
+		const indicesToRemove = actionGroups.splice(undoIndex, 1)[0];
+
+		// Also remove any loadhash action groups that immediately followed
+		while (undoIndex < actionGroups.length) {
+			const indicesNext = actionGroups[undoIndex];
+			const firstEntryNext = logEntries[indicesNext[0]] || "";
+			if (!firstEntryNext.includes('loadhash')) break;
+			// remove this loadhash group
+			actionGroups.splice(undoIndex, 1);
+			indicesToRemove.push(...indicesNext);
+		}
+
+		// remove all log entries for these groups
+		for (let i = 0; i < indicesToRemove.length; i++) logEntries.pop();
+
+		// decrement moveCount if it wasn't a layer action
+		const lastEntry = logEntries[indicesToRemove[0]];
+		if (lastEntry && !lastEntry.startsWith('[newlayer')) {
 			moveCount = Math.max(moveCount - 1, 0);
 		}
-		// pop all entries from end until we've removed this group's entries
-		for (let i = 0; i < indices.length; i++) {
-			logEntries.pop();
-		}
+
 		renderLog();
 	}
+
+	// call the original undo
 	const result = original_undo.apply(this, arguments);
+
+	// log any new changes produced by the undo (without adding to actionGroups)
 	const newEntries = logNewChanges('undo', 'undo');
 	// don't push undo changes into actionGroups
 	addChangesLog('after undo', newEntries, 'undo');
+
 	return result;
 };
 
