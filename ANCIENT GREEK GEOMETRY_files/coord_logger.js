@@ -122,14 +122,14 @@ geo.resetall = function() {
 
 geo.undo = function() {
 	console.log('[undo hook]');
-	// remove last action group
+	// remove last action group (including loadhash if it was the last one)
 	if (actionGroups.length > 0) {
 		const indices = actionGroups.pop();
 		const lastEntry = logEntries[indices[0]];
 		// only decrement moveCount if this wasn't a layer action
-        if (lastEntry && !lastEntry.startsWith('[newlayer')) {
-            moveCount = Math.max(moveCount - 1, 0);
-        }
+		if (lastEntry && !lastEntry.startsWith('[newlayer') && !lastEntry.includes('loadhash')) {
+			moveCount = Math.max(moveCount - 1, 0);
+		}
 		// pop all entries from end until we've removed this group's entries
 		for (let i = 0; i < indices.length; i++) {
 			logEntries.pop();
@@ -147,7 +147,7 @@ geo.loadhash = function() {
 	clearLog();
 	const result = original_loadhash.apply(this, arguments);
 	const newEntries = logNewChanges('loadhash', 'loadhash');
-	// treat loadhash as its own action group
+	// push loadhash into actionGroups so it can be undone too
 	actionGroups.push(addChangesLog('after loadhash', newEntries, 'loadhash'));
 	return result;
 };
