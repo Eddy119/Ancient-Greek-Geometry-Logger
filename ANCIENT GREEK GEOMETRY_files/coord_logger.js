@@ -176,8 +176,11 @@ geo.undo = function() {
 			indicesToRemove.push(...indicesNext);
 		}
 
-		// remove all log entries for these groups
-		for (let i = 0; i < indicesToRemove.length; i++) logEntries.pop();
+		// Remove all corresponding log entries by index (descending to avoid shifting)
+		indicesToRemove.sort((a, b) => b - a);
+		for (let i = 0; i < indicesToRemove.length; i++) {
+			logEntries.splice(indicesToRemove[i], 1);
+		}
 
 		// decrement moveCount if it wasn't a layer action
 		const lastEntry = logEntries[indicesToRemove[0]];
