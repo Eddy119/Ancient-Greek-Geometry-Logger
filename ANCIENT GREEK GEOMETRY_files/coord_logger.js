@@ -2,7 +2,7 @@
 // This version:
 // - Logs directly from makeline/makearc/newlayer
 // - Tracks layerCount and moveCount
-// - Also prints entries from changes (arc, realline, newlayer) whenever makeline/makearc/newlayer fire
+// - Also prints *only new entries* from changes (arc, realline, newlayer) whenever makeline/makearc/newlayer fire
 // - Prints labels so you know where the log came from
 
 'use strict';
@@ -13,6 +13,7 @@ const nukerBtn = document.getElementById('coordnuker');
 let layerCount = 0;
 let moveCount = 0;
 let logEntries = [];
+let lastChangesLength = 0; // track processed changes
 
 function renderLog() {
 	if (!coordBar) return;
@@ -37,6 +38,7 @@ function clearLog() {
 	moveCount = 0;
 	renderLog();
 	console.log('Coordinate log cleared');
+	lastChangesLength = 0;
 }
 
 if (nukerBtn) {
@@ -51,47 +53,39 @@ const original_reset = geo.resetall;
 const original_undo = changes.undo;
 const original_loadhash = geo.loadhash;
 
+function logNewChanges(label) {
+	if (typeof changes === 'undefined') return;
+	for (let i = lastChangesLength; i < changes.length; i++) {
+		const ch = changes[i];
+		if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
+			console.log(`[changes new after ${label}]`, i, ch);
+		}
+	}
+	lastChangesLength = changes.length;
+}
+
 window.makeline = function(p1, p2) {
 	moveCount += 1;
 	addLog(`[makeline hook] Move ${moveCount}`, `(${p1.x}, ${p1.y}) → (${p2.x}, ${p2.y})`);
-	// also dump changes entries
-	if (typeof changes !== 'undefined') {
-		for (let i = 0; i < changes.length; i++) {
-			const ch = changes[i];
-			if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
-				console.log('[changes after makeline]', i, ch);
-			}
-		}
-	}
-	return original_makeline.apply(this, arguments);
+	const result = original_makeline.apply(this, arguments);
+	logNewChanges('makeline');
+	return result;
 };
 
 window.makearc = function(center, point) {
 	moveCount += 1;
 	addLog(`[makearc hook] Move ${moveCount}`, `Center (${center.x}, ${center.y}), Point (${point.x}, ${point.y})`);
-	if (typeof changes !== 'undefined') {
-		for (let i = 0; i < changes.length; i++) {
-			const ch = changes[i];
-			if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
-				console.log('[changes after makearc]', i, ch);
-			}
-		}
-	}
-	return original_makearc.apply(this, arguments);
+	const result = original_makearc.apply(this, arguments);
+	logNewChanges('makearc');
+	return result;
 };
 
 geo.newlayer = function() {
 	layerCount += 1;
 	addLog('[newlayer hook]', `Layer ${layerCount}`);
-	if (typeof changes !== 'undefined') {
-		for (let i = 0; i < changes.length; i++) {
-			const ch = changes[i];
-			if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
-				console.log('[changes after newlayer]', i, ch);
-			}
-		}
-	}
-	return original_newlayer.apply(this, arguments);
+	const result = original_newlayer.apply(this, arguments);
+	logNewChanges('newlayer');
+	return result;
 };
 
 geo.resetall = function() {
@@ -101,30 +95,25 @@ geo.resetall = function() {
 
 changes.undo = function() {
 	console.log('[undo hook]');
-	undoLog();
-	return original_undo.apply(this, arguments);
+    undoLog();
+	const result = original_undo.apply(this, arguments);
+	logNewChanges('undo');
+	return result;
 };
 
 geo.loadhash = function() {
 	clearLog();
 	const result = original_loadhash.apply(this, arguments);
-	if (typeof changes !== 'undefined') {
-		for (let i = 0; i < changes.length; i++) {
-			const ch = changes[i];
-			if (ch && (ch.type === 'arc' || ch.type === 'realline' || ch.type === 'newlayer')) {
-				console.log('[changes after loadhash]', i, ch);
-			}
-		}
-	}
+	logNewChanges('loadhash');
 	return result;
 };
 
 function undoLog() {
 	const lastEntry = logEntries[logEntries.length - 1];
-	if (typeof lastEntry !== 'undefined'&& lastEntry && lastEntry.startsWith('[newlayer')) {
+	if (lastEntry && lastEntry.startsWith('[newlayer')) {
 		layerCount = Math.max(layerCount - 1, 0);
 	}
-	if (typeof lastEntry !== 'undefined' && lastEntry && lastEntry.includes('Move')) {
+	if (lastEntry && lastEntry.includes('Move')) {
 		moveCount = Math.max(moveCount - 1, 0);
 	}
 	logEntries.pop();
