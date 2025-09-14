@@ -7,17 +7,17 @@ sciencevsmagic_local_storage_fetcher.js
 
 # Ask Nico Disseldorp for upload permission
 ANCIENT GREEK GEOMETRY.html
-./ANCIENT GREEK GEOMETRY_files/style.css
-./ANCIENT GREEK GEOMETRY_files/touch.js.download
-./ANCIENT GREEK GEOMETRY_files/plwik.js.download
-./ANCIENT GREEK GEOMETRY_files/saved_resource.html
-./ANCIENT GREEK GEOMETRY_files/init.js.download
-./ANCIENT GREEK GEOMETRY_files/fittoscreen.js.download
-./ANCIENT GREEK GEOMETRY_files/geo.js.download
-./ANCIENT GREEK GEOMETRY_files/modules.js.download
-./ANCIENT GREEK GEOMETRY_files/mouse.js.download
-./ANCIENT GREEK GEOMETRY_files/sidebartoggle.js.download
-./ANCIENT GREEK GEOMETRY_files/test.js.download
+ANCIENT GREEK GEOMETRY_files/style.css
+ANCIENT GREEK GEOMETRY_files/touch.js.download
+ANCIENT GREEK GEOMETRY_files/plwik.js.download
+ANCIENT GREEK GEOMETRY_files/saved_resource.html
+ANCIENT GREEK GEOMETRY_files/init.js.download
+ANCIENT GREEK GEOMETRY_files/fittoscreen.js.download
+ANCIENT GREEK GEOMETRY_files/geo.js.download
+ANCIENT GREEK GEOMETRY_files/modules.js.download
+ANCIENT GREEK GEOMETRY_files/mouse.js.download
+ANCIENT GREEK GEOMETRY_files/sidebartoggle.js.download
+ANCIENT GREEK GEOMETRY_files/test.js.download
 
 # I screwed up init git
-./Ancient-Greek-Geometry-Logger
+# ./Ancient-Greek-Geometry-Logger
