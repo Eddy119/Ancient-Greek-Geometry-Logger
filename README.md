@@ -82,6 +82,7 @@ Add this to CSS
 
 #coordscroll {
     overflow: auto;
+    overflow-wrap: normal;
     bottom: 0px;
 }
 
