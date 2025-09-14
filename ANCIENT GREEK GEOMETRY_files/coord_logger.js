@@ -14,6 +14,7 @@ const coordBar = document.getElementById('coordscroll');
 const nukerBtn = document.getElementById('coordnuker');
 let layerCount = 0;
 let moveCount = 0;
+let realmoveCount = 0; // for real moves later
 let logEntries = [];
 let lastChangesLength = 0; // track processed changes
 let actionGroups = []; // array of arrays of indices in logEntries
@@ -124,6 +125,11 @@ geo.undo = function() {
 	// remove last action group
 	if (actionGroups.length > 0) {
 		const indices = actionGroups.pop();
+		const lastEntry = logEntries[indices[0]];
+		// only decrement moveCount if this wasn't a layer action
+        if (lastEntry && !lastEntry.startsWith('[newlayer')) {
+            moveCount = Math.max(moveCount - 1, 0);
+        }
 		// pop all entries from end until we've removed this group's entries
 		for (let i = 0; i < indices.length; i++) {
 			logEntries.pop();
