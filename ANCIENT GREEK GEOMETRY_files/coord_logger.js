@@ -59,7 +59,7 @@ const original_makeline = window.makeline;
 const original_makearc = window.makearc;
 const original_newlayer = geo.newlayer;
 const original_reset = geo.resetall;
-const original_undo = changes.undo;
+const original_undo = geo.undo;
 const original_loadhash = geo.loadhash;
 
 function logNewChanges(label) {
@@ -108,7 +108,7 @@ geo.resetall = function() {
 	return original_reset.apply(this, arguments);
 };
 
-changes.undo = function() {
+geo.undo = function() {
 	console.log('[undo hook]');
     undoLog();
 	const result = original_undo.apply(this, arguments);
