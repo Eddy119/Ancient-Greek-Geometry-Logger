@@ -11,13 +11,14 @@ const coordBar = document.getElementById('coordscroll');
 const nukerBtn = document.getElementById('coordnuker');
 
 let logEntries = [];
+let logEntryChangeIndex = []; // NEW
 let entrySerial = 0;
 let realmoveCount = 0;
 let lastChangesLength = 0;
 let lastProcessedJump = 0;
 
 // === toggle between implementations ===
-const USE_JUMPS = false; // set true for jumps version, false for lastChangesLength version
+const USE_JUMPS = true; // set true for jumps version, false for lastChangesLength version
 
 // --- footer element ---
 let footerDiv = document.createElement('div');
@@ -100,32 +101,36 @@ changes.record = function(finished) {
     if (USE_JUMPS) {
         if (changes && changes.jumps && changes.jumps.length > 1) {
             const currentLastJump = changes.jumps.length - 1;
-            
-            // Trim logEntries if undo removed jumps
-            if (lastProcessedJump > currentLastJump) {
-                logEntries = logEntries.slice(0, logEntries.length - (lastProcessedJump - currentLastJump) * 100); 
-                // 100 is rough overestimate, just to remove extra entries, formatting will adjust
-                lastProcessedJump = currentLastJump;
-            }
+
+            // --- Remove log entries beyond last jump (precise) ---
+            logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
+            logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
 
             for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
                 for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
                     const formatted = formatChange(changes[k], j);
-                    if (formatted) { logEntries.push(formatted); entrySerial++; }
+                    if (formatted) {
+                        logEntries.push(formatted);
+                        logEntryChangeIndex.push(k); // track source
+                        entrySerial++;
+                    }
                 }
             }
             lastProcessedJump = currentLastJump;
         }
     } else {
-        // Trim logEntries if undo reduced changes
-        if (changes.length < lastChangesLength) {
-            logEntries = logEntries.slice(0, logEntries.length - (lastChangesLength - changes.length));
-            entrySerial = logEntries.length;
-        }
+        // --- Remove log entries beyond last change (precise) ---
+        logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
+        logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
+        entrySerial = logEntries.length;
 
         for (let i = lastChangesLength; i < changes.length; i++) {
             const formatted = formatChange(changes[i], lastProcessedJump + 1);
-            if (formatted) { logEntries.push(formatted); entrySerial++; }
+            if (formatted) {
+                logEntries.push(formatted);
+                logEntryChangeIndex.push(i); // track source
+                entrySerial++;
+            }
         }
         lastChangesLength = changes.length;
         lastProcessedJump++;
