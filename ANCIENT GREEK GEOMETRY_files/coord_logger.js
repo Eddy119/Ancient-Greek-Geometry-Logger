@@ -1,4 +1,4 @@
-// Geometry Logger – two variants we'll probably use changes.jumps
+// Geometry Logger – using changes.jumps
 //
 // Variant A: uses changes.jumps to group finalized actions.
 // Variant B: uses lastChangesLength (raw scan) to log new entries after each record. removed.
@@ -18,8 +18,9 @@ let realmoveCount = 0;
 // let lastChangesLength = 0;
 let lastProcessedJump = 0;
 
-// === toggle between implementations ===
-// const USE_JUMPS = true; // set true for jumps version, false for lastChangesLength version
+// === user lines state ===
+let drawnLines = [];
+let userLineId = 0;
 
 // --- footer element ---
 let footerDiv = document.createElement('div');
@@ -57,6 +58,8 @@ function clearLog() {
 	realmoveCount = 0;
 	// lastChangesLength = 0;
 	lastProcessedJump = 0;
+	drawnLines = [];
+	userLineId = 0;
 	if (coordBar) coordBar.innerHTML = '';
 }
 
@@ -132,7 +135,6 @@ if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
 		const res = original_replay.apply(this, arguments);
-		// lastChangesLength = 0;
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
 		return res;
@@ -144,4 +146,40 @@ const orig_reset = geo.resetall;
 geo.resetall = function() {
 	clearLog();
 	return orig_reset.apply(this, arguments);
+};
+
+// --- hook makeline for user lines ---
+const original_makeline = window.makeline;
+window.makeline = function(p1, p2) {
+	const result = original_makeline.apply(this, arguments);
+	const record = {
+		id: ++userLineId,
+		a: p1.id,
+		b: p2.id,
+		x1: p1.x, y1: p1.y,
+		x2: p2.x, y2: p2.y
+	};
+	drawnLines.push(record);
+
+	entrySerial = logEntries.length;
+	const entry = `UserLine ${record.id}: ${record.x1},${record.y1} → ${record.x2},${record.y2} [user, #${entrySerial + 1}]`;
+	logEntries.push(entry);
+	logEntryChangeIndex.push(-1); // mark as user line
+
+	renderLog();
+	return result;
+};
+
+// --- hook undo for user lines ---
+const orig_undo = geo.undo;
+geo.undo = function() {
+	const res = orig_undo.apply(this, arguments);
+	if (logEntryChangeIndex.length > 0 && logEntryChangeIndex[logEntryChangeIndex.length - 1] === -1) {
+		logEntryChangeIndex.pop();
+		logEntries.pop();
+		drawnLines.pop();
+		entrySerial = logEntries.length;
+		renderLog();
+	}
+	return res;
 };
