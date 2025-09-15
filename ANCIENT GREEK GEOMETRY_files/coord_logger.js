@@ -1,7 +1,7 @@
-// Geometry Logger – two variants (choose via USE_JUMPS flag)
+// Geometry Logger – two variants we'll probably use changes.jumps
 //
 // Variant A: uses changes.jumps to group finalized actions.
-// Variant B: uses lastChangesLength (raw scan) to log new entries after each record.
+// Variant B: uses lastChangesLength (raw scan) to log new entries after each record. removed.
 //
 // Both share a debug footer printed at the bottom of coordscroll showing engine state.
 
@@ -15,11 +15,11 @@ let logEntryChangeIndex = [];
 let entrySerial = 0;
 let actionCount = 0; // NEW independent action counter
 let realmoveCount = 0;
-let lastChangesLength = 0;
+// let lastChangesLength = 0;
 let lastProcessedJump = 0;
 
 // === toggle between implementations ===
-const USE_JUMPS = true; // set true for jumps version, false for lastChangesLength version
+// const USE_JUMPS = true; // set true for jumps version, false for lastChangesLength version
 
 // --- footer element ---
 let footerDiv = document.createElement('div');
@@ -55,7 +55,7 @@ function clearLog() {
 	entrySerial = 0;
 	actionCount = 0;
 	realmoveCount = 0;
-	lastChangesLength = 0;
+	// lastChangesLength = 0;
 	lastProcessedJump = 0;
 	if (coordBar) coordBar.innerHTML = '';
 }
@@ -63,7 +63,7 @@ function clearLog() {
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 // formatting helper
-function formatChange(ch) {
+function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
 	if (ch.type === 'line') return null; // skip plain line types
 	const rm = realmoveCount;
@@ -78,7 +78,7 @@ function formatChange(ch) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		return `Action ${actionCount}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'realline') {
 		const x1 = ch.obj?.point1?.x ?? '??';
 		const y1 = ch.obj?.point1?.y ?? '??';
@@ -86,9 +86,9 @@ function formatChange(ch) {
 		const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		return `Action ${actionCount}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'newlayer') {
-		return `Action ${actionCount}: NewLayer [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
 	return null;
 }
@@ -102,57 +102,37 @@ changes.record = function(finished) {
 	const result = original_record.apply(this, arguments);
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
 
-	if (USE_JUMPS) {
-		if (changes && changes.jumps && changes.jumps.length > 1) {
-			const currentLastJump = changes.jumps.length - 1;
+	if (changes && changes.jumps && changes.jumps.length > 1) {
+		const currentLastJump = changes.jumps.length - 1;
 
-			// trim entries to sync with engine
-			logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
-			logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
-			entrySerial = logEntries.length;
-
-			for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-				actionCount++;
-				for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
-					const formatted = formatChange(changes[k]);
-					if (formatted) {
-						logEntries.push(formatted);
-						logEntryChangeIndex.push(k);
-						entrySerial = logEntries.length;
-					}
-				}
-			}
-			lastProcessedJump = currentLastJump;
-		}
-	} else {
 		// trim entries to sync with engine
 		logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
 		logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
 		entrySerial = logEntries.length;
 
-		let actionId = 0;
-		for (let i = lastChangesLength; i < changes.length; i++) {
+		for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
 			actionCount++;
-			const formatted = formatChange(changes[i]);
-			if (formatted) {
-				logEntries.push(formatted);
-				logEntryChangeIndex.push(i);
-				entrySerial = logEntries.length;
+			for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
+				const formatted = formatChange(changes[k], j);
+				if (formatted) {
+					logEntries.push(formatted);
+					logEntryChangeIndex.push(k); // track source
+					entrySerial = logEntries.length;
+				}
 			}
 		}
-		lastChangesLength = changes.length;
-		lastProcessedJump++;
-	}
+		lastProcessedJump = currentLastJump;
 
 	renderLog();
 	return result;
+	};
 };
 
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
 		const res = original_replay.apply(this, arguments);
-		lastChangesLength = 0;
+		// lastChangesLength = 0;
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
 		return res;
@@ -172,11 +152,7 @@ geo.resetall = function() {
 // 	const res = orig_undo.apply(this, arguments);
 // 	// safest: clear and rebuild from scratch
 // 	clearLog();
-// 	if (USE_JUMPS) {
-// 		lastProcessedJump = 0;
-// 	} else {
-// 		lastChangesLength = 0;
-// 	}
+// 	lastProcessedJump = 0;
 // 	// force re-log by replaying
 // 	if (typeof changes.replay === 'function') {
 // 		changes.replay();
