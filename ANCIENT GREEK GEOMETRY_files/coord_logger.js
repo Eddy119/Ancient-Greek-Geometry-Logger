@@ -124,14 +124,19 @@ changes.record = function(finished) {
         logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
         entrySerial = logEntries.length;
 
-        for (let i = lastChangesLength; i < changes.length; i++) {
-            const formatted = formatChange(changes[i], lastProcessedJump + 1);
-            if (formatted) {
-                logEntries.push(formatted);
-                logEntryChangeIndex.push(i); // track source
-                entrySerial++;
-            }
-        }
+		// Reset actionId to match last remaining change
+		let lastChangeIndex = logEntryChangeIndex.length ? logEntryChangeIndex[logEntryChangeIndex.length - 1] : -1;
+		let actionId = lastChangeIndex >= 0 ? lastChangeIndex + 1 : 0;
+
+		for (let i = lastChangesLength; i < changes.length; i++) {
+			const formatted = formatChange(changes[i], actionId);
+			if (formatted) {
+				logEntries.push(formatted);
+				logEntryChangeIndex.push(i);
+				entrySerial++;
+				actionId++;
+			}
+		}
         lastChangesLength = changes.length;
         lastProcessedJump++;
     }
