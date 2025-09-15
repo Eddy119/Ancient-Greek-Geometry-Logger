@@ -1,11 +1,9 @@
-// Geometry Logger with direct hooks and changes inspection
+// Geometry Logger using changes.record hook
 // This version:
-// - Logs directly from makeline/makearc/newlayer
-// - Tracks layerCount and moveCount
-// - Prints *new entries* from changes (arc, realline, newlayer) whenever makeline/makearc/newlayer fire
-// - Prints labels so you know where the log came from
-// - Also appends changes entries to coordbar as coord-entries (concat string per move)
-// - Tracks groups of log entries per action, so undo removes all entries from the last action
+// - Hooks only into changes.record
+// - Logs finalized entries from changes (arc, realline, newlayer)
+// - Tracks layerCount, moveCount, and realmoveCount from modules.test.score()
+// - Groups log entries per action so undo removes all entries from that action
 
 'use strict';
 
@@ -14,7 +12,7 @@ const coordBar = document.getElementById('coordscroll');
 const nukerBtn = document.getElementById('coordnuker');
 let layerCount = 0;
 let moveCount = 0;
-let realmoveCount = 0; // updated after each action
+let realmoveCount = 0; // updated via modules.test.score()
 let logEntries = [];
 let lastChangesLength = 0; // track processed changes
 let actionGroups = []; // array of arrays of indices in logEntries
@@ -37,15 +35,6 @@ function addLog(label, details, actionTag) {
 	return logEntries.length - 1; // return index
 }
 
-function addChangesLog(label, entries, actionTag) {
-	if (entries.length === 0) return [];
-	const combined = entries.map(e => JSON.stringify(e)).join(" | ");
-	const formatted = `[changes ${label}] ${combined} [action ${actionTag}] [real moves ${realmoveCount}]`;
-	logEntries.push(formatted);
-	renderLog();
-	return [logEntries.length - 1];
-}
-
 function clearLog() {
 	logEntries = [];
 	actionGroups = [];
@@ -61,183 +50,77 @@ if (nukerBtn) {
 	nukerBtn.addEventListener('click', clearLog);
 }
 
-// Save originals
-const original_makeline = window.makeline;
-const original_makearc = window.makearc;
-const original_newlayer = geo.newlayer;
-const original_reset = geo.resetall;
-const original_undo = geo.undo;
-const original_loadhash = geo.loadhash;
+// Save original
+const original_record = changes.record;
 
-function logNewChanges(label, actionTag) {
+function logNewChanges(actionTag) {
 	if (typeof changes === 'undefined') return [];
 	let newEntries = [];
 	for (let i = lastChangesLength; i < changes.length; i++) {
 		const ch = changes[i];
 		if (!ch) continue;
-		let filtered = null;
+		let formatted = null;
 		if (ch.type === 'arc') {
-			filtered = {
-				type: ch.type,
-				name: ch.name,
-				centre: ch.obj?.centre,
-				edge: ch.obj?.edge,
-				radius: ch.obj?.radius,
-				a: ch.a,
-				b: ch.b
-			};
+			formatted = `Arc ${ch.name}: Centre (${ch.obj?.centre?.x}, ${ch.obj?.centre?.y}), Edge (${ch.obj?.edge?.x}, ${ch.obj?.edge?.y}), r=${ch.obj?.radius}`;
 		} else if (ch.type === 'realline') {
-			filtered = {
-				type: ch.type,
-				name: ch.name,
-				point1: ch.obj?.point1,
-				point2: ch.obj?.point2,
-				angle: ch.obj?.angle,
-				length: ch.obj?.length,
-				a: ch.a,
-				b: ch.b
-			};
+			formatted = `Line ${ch.name}: (${ch.obj?.point1?.x}, ${ch.obj?.point1?.y}) → (${ch.obj?.point2?.x}, ${ch.obj?.point2?.y})`;
 		} else if (ch.type === 'newlayer') {
-			filtered = {
-				type: ch.type,
-				layer: layerCount,
-			};
+			layerCount += 1;
+			formatted = `Layer ${layerCount}`;
 		}
-
-		if (filtered) {
-			newEntries.push(filtered);
+		if (formatted) {
+			newEntries.push(addLog('[changes.record]', formatted, actionTag));
 		}
 	}
 	lastChangesLength = changes.length;
-	return addChangesLog(`after ${label}`, newEntries, actionTag);
+	return newEntries;
 }
 
-// Hooks
-window.makeline = function(p1, p2) {
-	moveCount += 1;
-	const actionTag = actionGroups.length + 1;
-	let indices = [];
+changes.record = function(finished) {
+	// Call original
+	const result = original_record.apply(this, arguments);
 
-	// Call original first
-	const result = original_makeline.apply(this, arguments);
-
-	// Fetch real moves after execution
-	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
-		? modules.test.score() 
+	// Update realmoveCount from modules.test.score()
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function')
+		? modules.test.score()
 		: realmoveCount;
 
-	// Log entries
-	indices.push(addLog(`[makeline hook] Move ${moveCount}`, `(${p1.x}, ${p1.y}) → (${p2.x}, ${p2.y})`, actionTag));
-	indices = indices.concat(logNewChanges('makeline', actionTag));
-	actionGroups.push(indices);
+	// Each record call = new actionTag
+	const actionTag = actionGroups.length + 1;
+	const indices = logNewChanges(actionTag);
+	if (indices.length > 0) {
+		actionGroups.push(indices);
+		moveCount += 1;
+	}
 
 	return result;
 };
 
-window.makearc = function(center, point) {
-	moveCount += 1;
-	const actionTag = actionGroups.length + 1;
-	let indices = [];
-
-	const result = original_makearc.apply(this, arguments);
-
-	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
-		? modules.test.score() 
-		: realmoveCount;
-
-	indices.push(addLog(`[makearc hook] Move ${moveCount}`, `Center (${center.x}, ${center.y}), Point (${point.x}, ${point.y})`, actionTag));
-	indices = indices.concat(logNewChanges('makearc', actionTag));
-	actionGroups.push(indices);
-
-	return result;
-};
-
-geo.newlayer = function() {
-	layerCount += 1;
-	const actionTag = actionGroups.length + 1;
-	let indices = [];
-
-	const result = original_newlayer.apply(this, arguments);
-
-	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
-		? modules.test.score() 
-		: realmoveCount;
-
-	indices.push(addLog('[newlayer hook]', `Layer ${layerCount}`, actionTag));
-	indices = indices.concat(logNewChanges('newlayer', actionTag));
-	actionGroups.push(indices);
-
-	return result;
-};
-
+// Hook reset and undo to clear/purge logs
+const original_reset = geo.resetall;
 geo.resetall = function() {
 	clearLog();
 	return original_reset.apply(this, arguments);
 };
 
+const original_undo = geo.undo;
 geo.undo = function() {
 	console.log('[undo hook]');
 
-	if (actionGroups.length === 0) return original_undo.apply(this, arguments);
-
-	// Start from the end and find the last real action (not loadhash)
-	let undoIndex = actionGroups.length - 1;
-	while (undoIndex >= 0) {
-		const indices = actionGroups[undoIndex];
-		const firstEntry = logEntries[indices[0]] || "";
-		if (!firstEntry.includes('loadhash')) break;
-		undoIndex--;
-	}
-
-	if (undoIndex >= 0) {
-		// Remove the last real action
-		const indicesToRemove = actionGroups.splice(undoIndex, 1)[0];
-
-		// Also remove any loadhash action groups that immediately followed
-		while (undoIndex < actionGroups.length) {
-			const indicesNext = actionGroups[undoIndex];
-			const firstEntryNext = logEntries[indicesNext[0]] || "";
-			if (!firstEntryNext.includes('loadhash')) break;
-			// remove this loadhash group
-			actionGroups.splice(undoIndex, 1);
-			indicesToRemove.push(...indicesNext);
+	if (actionGroups.length > 0) {
+		const indices = actionGroups.pop();
+		for (let i = 0; i < indices.length; i++) {
+			logEntries.pop();
 		}
-
-		// Remove all corresponding log entries by index (descending to avoid shifting)
-		indicesToRemove.sort((a, b) => b - a);
-		for (let i = 0; i < indicesToRemove.length; i++) {
-			logEntries.splice(indicesToRemove[i], 1);
-		}
-
-		// decrement moveCount if it wasn't a layer action
-		const lastEntry = logEntries[indicesToRemove[0]];
-		if (lastEntry && !lastEntry.startsWith('[newlayer')) {
-			moveCount = Math.max(moveCount - 1, 0);
-		}
-
 		renderLog();
+		moveCount = Math.max(moveCount - 1, 0);
 	}
 
-	// call the original undo
 	const result = original_undo.apply(this, arguments);
 
-	// log any new changes produced by the undo (without adding to actionGroups)
-	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
-		? modules.test.score() 
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function')
+		? modules.test.score()
 		: realmoveCount;
-
-	const newEntries = logNewChanges('undo', 'undo');
-	// don't push undo changes into actionGroups
-	addChangesLog('after undo', newEntries, 'undo');
 
 	return result;
 };
-
-// geo.loadhash = function() { // commented out because undoing loadhash is buggy and logging loadhash is kind of pointless as it is only called at init i.e. page load, not from localStorage load, that calls changes.replay()
-// 	clearLog();
-// 	const result = original_loadhash.apply(this, arguments);
-// 	const newEntries = logNewChanges('loadhash', 'loadhash');
-// 	// push loadhash into actionGroups so it can be undone too
-// 	actionGroups.push(addChangesLog('after loadhash', newEntries, 'loadhash'));
-// 	return result;
-// };
