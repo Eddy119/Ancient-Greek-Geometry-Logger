@@ -145,17 +145,3 @@ geo.resetall = function() {
 	clearLog();
 	return orig_reset.apply(this, arguments);
 };
-
-// Undo hook --- remove the geo.undo override entirely ---
-// const orig_undo = geo.undo;
-// geo.undo = function() {
-// 	const res = orig_undo.apply(this, arguments);
-// 	// safest: clear and rebuild from scratch
-// 	clearLog();
-// 	lastProcessedJump = 0;
-// 	// force re-log by replaying
-// 	if (typeof changes.replay === 'function') {
-// 		changes.replay();
-// 	}
-// 	return res;
-// };
