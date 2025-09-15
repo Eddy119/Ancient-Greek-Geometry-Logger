@@ -202,11 +202,11 @@ geo.undo = function() {
 	return result;
 };
 
-geo.loadhash = function() {
-	clearLog();
-	const result = original_loadhash.apply(this, arguments);
-	const newEntries = logNewChanges('loadhash', 'loadhash');
-	// push loadhash into actionGroups so it can be undone too
-	actionGroups.push(addChangesLog('after loadhash', newEntries, 'loadhash'));
-	return result;
-};
+// geo.loadhash = function() { // commented out because undoing loadhash is buggy and logging loadhash is kind of pointless as it is only called at init i.e. page load, not from localStorage load, that calls changes.replay()
+// 	clearLog();
+// 	const result = original_loadhash.apply(this, arguments);
+// 	const newEntries = logNewChanges('loadhash', 'loadhash');
+// 	// push loadhash into actionGroups so it can be undone too
+// 	actionGroups.push(addChangesLog('after loadhash', newEntries, 'loadhash'));
+// 	return result;
+// };
