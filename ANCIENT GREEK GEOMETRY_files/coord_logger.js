@@ -63,7 +63,7 @@ function clearLog() {
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 // formatting helper
-function formatChange(ch, actionId) {
+function formatChange(ch) {
 	if (!ch || !ch.type) return null;
 	if (ch.type === 'line') return null; // skip plain line types
 	const rm = realmoveCount;
@@ -78,7 +78,7 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionCount}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'realline') {
 		const x1 = ch.obj?.point1?.x ?? '??';
 		const y1 = ch.obj?.point1?.y ?? '??';
@@ -86,9 +86,9 @@ function formatChange(ch, actionId) {
 		const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionCount}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'newlayer') {
-		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionCount}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
 	return null;
 }
@@ -111,9 +111,9 @@ changes.record = function(finished) {
 		entrySerial = logEntries.length;
 
 		for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-			actionCount++;
 			for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
-				const formatted = formatChange(changes[k], j);
+				actionCount = j - 1; // fudge factor
+				const formatted = formatChange(changes[k]);
 				if (formatted) {
 					logEntries.push(formatted);
 					logEntryChangeIndex.push(k); // track source
