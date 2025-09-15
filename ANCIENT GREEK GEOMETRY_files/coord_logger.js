@@ -11,8 +11,9 @@ const coordBar = document.getElementById('coordscroll');
 const nukerBtn = document.getElementById('coordnuker');
 
 let logEntries = [];
-let logEntryChangeIndex = []; // NEW
+let logEntryChangeIndex = [];
 let entrySerial = 0;
+let actionCount = 0; // NEW independent action counter
 let realmoveCount = 0;
 let lastChangesLength = 0;
 let lastProcessedJump = 0;
@@ -50,7 +51,9 @@ function renderLog() {
 
 function clearLog() {
 	logEntries = [];
+	logEntryChangeIndex = [];
 	entrySerial = 0;
+	actionCount = 0;
 	realmoveCount = 0;
 	lastChangesLength = 0;
 	lastProcessedJump = 0;
@@ -60,8 +63,9 @@ function clearLog() {
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 // formatting helper
-function formatChange(ch, actionId) {
+function formatChange(ch) {
 	if (!ch || !ch.type) return null;
+	if (ch.type === 'line') return null; // skip plain line types
 	const rm = realmoveCount;
 	let name = ch.obj && ch.obj.name ? ch.obj.name : (ch.name || '');
 	let a = (typeof ch.a !== 'undefined') ? ch.a : (typeof ch.obj?.a !== 'undefined' ? ch.obj.a : '?');
@@ -74,17 +78,17 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		return `Action ${actionId} #${entrySerial+1}: Arc ${hash}${name ? ` (${name})` : ''} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [real ${rm}]`;
-	} else if (ch.type === 'realline' || ch.type === 'line') {
+		return `Action ${actionCount}: Arc ${hash}${name ? ` (${name})` : ''} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
+	} else if (ch.type === 'realline') {
 		const x1 = ch.obj?.point1?.x ?? '??';
 		const y1 = ch.obj?.point1?.y ?? '??';
 		const x2 = ch.obj?.point2?.x ?? '??';
 		const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		return `Action ${actionId} #${entrySerial+1}: Line ${hash}${name ? ` (${name})` : ''} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [real ${rm}]`;
+		return `Action ${actionCount}: Line ${hash}${name ? ` (${name})` : ''} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'newlayer') {
-		return `Action ${actionId} #${entrySerial+1}: NewLayer [real ${rm}]`;
+		return `Action ${actionCount}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
 	return null;
 }
@@ -93,63 +97,61 @@ function formatChange(ch, actionId) {
 const original_record = changes.record;
 const original_replay = changes.replay;
 
-// --- instead, just let changes.record handle logging ---
+// --- just let changes.record handle logging ---
 changes.record = function(finished) {
-    const result = original_record.apply(this, arguments);
-    realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
+	const result = original_record.apply(this, arguments);
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
 
-    if (USE_JUMPS) {
-        if (changes && changes.jumps && changes.jumps.length > 1) {
-            const currentLastJump = changes.jumps.length - 1;
+	if (USE_JUMPS) {
+		if (changes && changes.jumps && changes.jumps.length > 1) {
+			const currentLastJump = changes.jumps.length - 1;
 
-            // --- Remove log entries beyond last jump (precise) ---
-            logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
-            logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
+			// trim entries to sync with engine
+			logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
+			logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
+			entrySerial = logEntries.length;
 
-            for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-                for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
-                    const formatted = formatChange(changes[k], j);
-                    if (formatted) {
-                        logEntries.push(formatted);
-                        logEntryChangeIndex.push(k); // track source
-                        entrySerial++;
-                    }
-                }
-            }
-            lastProcessedJump = currentLastJump;
-        }
-    } else {
-        // --- Remove log entries beyond last change (precise) ---
-        logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
-        logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
-        entrySerial = logEntries.length;
+			for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
+				actionCount++;
+				for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
+					const formatted = formatChange(changes[k]);
+					if (formatted) {
+						logEntries.push(formatted);
+						logEntryChangeIndex.push(k);
+						entrySerial = logEntries.length;
+					}
+				}
+			}
+			lastProcessedJump = currentLastJump;
+		}
+	} else {
+		// trim entries to sync with engine
+		logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] < changes.length);
+		logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx < changes.length);
+		entrySerial = logEntries.length;
 
-		// Reset actionId to match last remaining change
-		let lastChangeIndex = logEntryChangeIndex.length ? logEntryChangeIndex[logEntryChangeIndex.length - 1] : -1;
-		let actionId = lastChangeIndex >= 0 ? lastChangeIndex + 1 : 0;
-
+		let actionId = 0;
 		for (let i = lastChangesLength; i < changes.length; i++) {
-			const formatted = formatChange(changes[i], actionId);
+			actionCount++;
+			const formatted = formatChange(changes[i]);
 			if (formatted) {
 				logEntries.push(formatted);
 				logEntryChangeIndex.push(i);
-				entrySerial++;
-				actionId++;
+				entrySerial = logEntries.length;
 			}
 		}
-        lastChangesLength = changes.length;
-        lastProcessedJump++;
-    }
+		lastChangesLength = changes.length;
+		lastProcessedJump++;
+	}
 
-    renderLog();
-    return result;
+	renderLog();
+	return result;
 };
 
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
 		const res = original_replay.apply(this, arguments);
-		// reset counters
 		lastChangesLength = 0;
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
@@ -163,21 +165,3 @@ geo.resetall = function() {
 	clearLog();
 	return orig_reset.apply(this, arguments);
 };
-
-// Undo hook --- remove the geo.undo override entirely ---
-// const orig_undo = geo.undo;
-// geo.undo = function() {
-// 	const res = orig_undo.apply(this, arguments);
-// 	// safest: clear and rebuild from scratch
-// 	clearLog();
-// 	if (USE_JUMPS) {
-// 		lastProcessedJump = 0;
-// 	} else {
-// 		lastChangesLength = 0;
-// 	}
-// 	// force re-log by replaying
-// 	if (typeof changes.replay === 'function') {
-// 		changes.replay();
-// 	}
-// 	return res;
-// };
