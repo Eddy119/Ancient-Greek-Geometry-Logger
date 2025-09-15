@@ -92,34 +92,47 @@ function formatChange(ch, actionId) {
 const original_record = changes.record;
 const original_replay = changes.replay;
 
+// --- instead, just let changes.record handle logging ---
 changes.record = function(finished) {
-	const result = original_record.apply(this, arguments);
-	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
+    const result = original_record.apply(this, arguments);
+    realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
 
-	if (USE_JUMPS) {
-		// process new jumps
-		if (changes && changes.jumps && changes.jumps.length > 1) {
-			const currentLastJump = changes.jumps.length - 1;
-			for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-				for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
-					const formatted = formatChange(changes[k], j);
-					if (formatted) { logEntries.push(formatted); entrySerial++; }
-				}
-			}
-			lastProcessedJump = currentLastJump;
-		}
-	} else {
-		// process entries since lastChangesLength
-		for (let i = lastChangesLength; i < changes.length; i++) {
-			const formatted = formatChange(changes[i], lastProcessedJump + 1);
-			if (formatted) { logEntries.push(formatted); entrySerial++; }
-		}
-		lastChangesLength = changes.length;
-		lastProcessedJump++;
-	}
+    if (USE_JUMPS) {
+        if (changes && changes.jumps && changes.jumps.length > 1) {
+            const currentLastJump = changes.jumps.length - 1;
+            
+            // Trim logEntries if undo removed jumps
+            if (lastProcessedJump > currentLastJump) {
+                logEntries = logEntries.slice(0, logEntries.length - (lastProcessedJump - currentLastJump) * 100); 
+                // 100 is rough overestimate, just to remove extra entries, formatting will adjust
+                lastProcessedJump = currentLastJump;
+            }
 
-	renderLog();
-	return result;
+            for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
+                for (let k = changes.jumps[j-1]; k < changes.jumps[j]; k++) {
+                    const formatted = formatChange(changes[k], j);
+                    if (formatted) { logEntries.push(formatted); entrySerial++; }
+                }
+            }
+            lastProcessedJump = currentLastJump;
+        }
+    } else {
+        // Trim logEntries if undo reduced changes
+        if (changes.length < lastChangesLength) {
+            logEntries = logEntries.slice(0, logEntries.length - (lastChangesLength - changes.length));
+            entrySerial = logEntries.length;
+        }
+
+        for (let i = lastChangesLength; i < changes.length; i++) {
+            const formatted = formatChange(changes[i], lastProcessedJump + 1);
+            if (formatted) { logEntries.push(formatted); entrySerial++; }
+        }
+        lastChangesLength = changes.length;
+        lastProcessedJump++;
+    }
+
+    renderLog();
+    return result;
 };
 
 if (typeof changes.replay === 'function') {
@@ -141,20 +154,20 @@ geo.resetall = function() {
 	return orig_reset.apply(this, arguments);
 };
 
-// Undo hook
-const orig_undo = geo.undo;
-geo.undo = function() {
-	const res = orig_undo.apply(this, arguments);
-	// safest: clear and rebuild from scratch
-	clearLog();
-	if (USE_JUMPS) {
-		lastProcessedJump = 0;
-	} else {
-		lastChangesLength = 0;
-	}
-	// force re-log by replaying
-	if (typeof changes.replay === 'function') {
-		changes.replay();
-	}
-	return res;
-};
+// Undo hook --- remove the geo.undo override entirely ---
+// const orig_undo = geo.undo;
+// geo.undo = function() {
+// 	const res = orig_undo.apply(this, arguments);
+// 	// safest: clear and rebuild from scratch
+// 	clearLog();
+// 	if (USE_JUMPS) {
+// 		lastProcessedJump = 0;
+// 	} else {
+// 		lastChangesLength = 0;
+// 	}
+// 	// force re-log by replaying
+// 	if (typeof changes.replay === 'function') {
+// 		changes.replay();
+// 	}
+// 	return res;
+// };
