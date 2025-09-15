@@ -14,7 +14,7 @@ const coordBar = document.getElementById('coordscroll');
 const nukerBtn = document.getElementById('coordnuker');
 let layerCount = 0;
 let moveCount = 0;
-let realmoveCount = 0; // for real moves later
+let realmoveCount = 0; // updated after each action
 let logEntries = [];
 let lastChangesLength = 0; // track processed changes
 let actionGroups = []; // array of arrays of indices in logEntries
@@ -31,7 +31,7 @@ function renderLog() {
 }
 
 function addLog(label, details, actionTag) {
-	const formatted = `${label}: ${details} [action ${actionTag}]`;
+	const formatted = `${label}: ${details} [action ${actionTag}] [real moves ${realmoveCount}]`;
 	logEntries.push(formatted);
 	renderLog();
 	return logEntries.length - 1; // return index
@@ -40,7 +40,7 @@ function addLog(label, details, actionTag) {
 function addChangesLog(label, entries, actionTag) {
 	if (entries.length === 0) return [];
 	const combined = entries.map(e => JSON.stringify(e)).join(" | ");
-	const formatted = `[changes ${label}] ${combined} [action ${actionTag}]`;
+	const formatted = `[changes ${label}] ${combined} [action ${actionTag}] [real moves ${realmoveCount}]`;
 	logEntries.push(formatted);
 	renderLog();
 	return [logEntries.length - 1];
@@ -51,6 +51,7 @@ function clearLog() {
 	actionGroups = [];
 	layerCount = 0;
 	moveCount = 0;
+	realmoveCount = 0;
 	renderLog();
 	console.log('Coordinate log cleared');
 	lastChangesLength = 0;
@@ -111,14 +112,25 @@ function logNewChanges(label, actionTag) {
 	return addChangesLog(`after ${label}`, newEntries, actionTag);
 }
 
+// Hooks
 window.makeline = function(p1, p2) {
 	moveCount += 1;
 	const actionTag = actionGroups.length + 1;
 	let indices = [];
-	indices.push(addLog(`[makeline hook] Move ${moveCount}`, `(${p1.x}, ${p1.y}) → (${p2.x}, ${p2.y})`, actionTag));
+
+	// Call original first
 	const result = original_makeline.apply(this, arguments);
+
+	// Fetch real moves after execution
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
+		? modules.test.score() 
+		: realmoveCount;
+
+	// Log entries
+	indices.push(addLog(`[makeline hook] Move ${moveCount}`, `(${p1.x}, ${p1.y}) → (${p2.x}, ${p2.y})`, actionTag));
 	indices = indices.concat(logNewChanges('makeline', actionTag));
 	actionGroups.push(indices);
+
 	return result;
 };
 
@@ -126,10 +138,17 @@ window.makearc = function(center, point) {
 	moveCount += 1;
 	const actionTag = actionGroups.length + 1;
 	let indices = [];
-	indices.push(addLog(`[makearc hook] Move ${moveCount}`, `Center (${center.x}, ${center.y}), Point (${point.x}, ${point.y})`, actionTag));
+
 	const result = original_makearc.apply(this, arguments);
+
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
+		? modules.test.score() 
+		: realmoveCount;
+
+	indices.push(addLog(`[makearc hook] Move ${moveCount}`, `Center (${center.x}, ${center.y}), Point (${point.x}, ${point.y})`, actionTag));
 	indices = indices.concat(logNewChanges('makearc', actionTag));
 	actionGroups.push(indices);
+
 	return result;
 };
 
@@ -137,10 +156,17 @@ geo.newlayer = function() {
 	layerCount += 1;
 	const actionTag = actionGroups.length + 1;
 	let indices = [];
-	indices.push(addLog('[newlayer hook]', `Layer ${layerCount}`, actionTag));
+
 	const result = original_newlayer.apply(this, arguments);
+
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
+		? modules.test.score() 
+		: realmoveCount;
+
+	indices.push(addLog('[newlayer hook]', `Layer ${layerCount}`, actionTag));
 	indices = indices.concat(logNewChanges('newlayer', actionTag));
 	actionGroups.push(indices);
+
 	return result;
 };
 
@@ -151,6 +177,7 @@ geo.resetall = function() {
 
 geo.undo = function() {
 	console.log('[undo hook]');
+
 	if (actionGroups.length === 0) return original_undo.apply(this, arguments);
 
 	// Start from the end and find the last real action (not loadhash)
@@ -195,6 +222,10 @@ geo.undo = function() {
 	const result = original_undo.apply(this, arguments);
 
 	// log any new changes produced by the undo (without adding to actionGroups)
+	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') 
+		? modules.test.score() 
+		: realmoveCount;
+
 	const newEntries = logNewChanges('undo', 'undo');
 	// don't push undo changes into actionGroups
 	addChangesLog('after undo', newEntries, 'undo');
