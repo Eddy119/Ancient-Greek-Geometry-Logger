@@ -214,6 +214,7 @@ function formatChange(ch, actionId) {
 		if (intersections.length > 0) {
 			logStr += ` | Intersections:\n  ` + intersections.join('\n  ');
 		}
+		return logStr;
 	} else if (ch.type === 'newlayer') {
 		addDependency(`LAYER${actionId}`, { type: 'layer', depends: [], actionId });
 		return `Action ${actionId}: NewLayer`;
