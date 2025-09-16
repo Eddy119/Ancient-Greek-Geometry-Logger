@@ -113,7 +113,7 @@ function formatChange(ch, actionId) {
 		const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa${xa},${ya} → pb${xb},${yb}`;
+		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa: ${xa},${ya} → pb: ${xb},${yb}`;
 	} else if (ch.type === 'newlayer') {
 		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
