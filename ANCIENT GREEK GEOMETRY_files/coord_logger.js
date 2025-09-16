@@ -21,6 +21,9 @@ let userLines = [];           // committed user lines
 let userLinesPending = [];    // pending user lines (awaiting next changes.record)
 let userLineSerial = 0;       // monotonic id for user lines
 
+// dependency tracking
+let dependencyMap = {};
+
 // --- footer element ---
 let footerDiv = document.createElement('div');
 footerDiv.id = 'coord-footer';
@@ -79,10 +82,15 @@ function clearLog() {
 	userLines = [];
 	userLinesPending = [];
 	userLineSerial = 0;
+	dependencyMap = {};
 	if (coordBar) coordBar.innerHTML = '';
 }
 
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
+
+function addDependency(hash, deps) {
+	dependencyMap[hash] = deps;
+}
 
 // formatting helper
 function formatChange(ch, actionId) {
@@ -99,6 +107,7 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
+		addDependency(hash, [a, b]);  // arc defined by points a, b
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'realline') {
 		// trying to print a,b
@@ -114,6 +123,7 @@ function formatChange(ch, actionId) {
 		const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
+		addDependency(hash, [a, b]);  // line defined by points a, b
 		// return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa: ${xa},${ya} → pb: ${xb},${yb}`;
 		return `Action ${actionId}: Line ${hash} — ${xa},${ya} → ${xb},${yb} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'newlayer') {
