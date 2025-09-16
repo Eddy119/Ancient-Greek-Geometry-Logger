@@ -177,6 +177,11 @@ if (typeof changes.replay === 'function') {
 		return res;
 	};
 }
+const original_changes_undo = changes.undo;
+changes.undo = function() {
+	console.log("changes.undo called")
+	return original_changes_undo.apply(this, arguments);
+};
 
 // hook undo to also remove userLines
 geo.undo = function() {
