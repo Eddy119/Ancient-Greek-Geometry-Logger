@@ -53,7 +53,7 @@ function renderLog() {
 	for (let i = 0; i < userLines.length; i++) {
 		const ul = userLines[i];
 		const div = document.createElement('div');
-		div.textContent = `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, #${ul.serial}]`;
+		div.textContent = `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`;
 		div.className = 'coord-entry user';
 		coordBar.appendChild(div);
 	}
@@ -147,12 +147,7 @@ changes.record = function(finished) {
 			// flush pending userLines for this action
 			if (userLinesPending.length > 0) {
 				for (let p of userLinesPending) {
-					// old code for reference
-					// userLineSerial++;
-					// const lineStr = `UserLine ${userLineSerial}: ${ln.p1.x},${ln.p1.y} → ${ln.p2.x},${ln.p2.y} [user, action ${actionCount}]`;
-					// logEntries.push(lineStr);
-					// userLines.push({ id: userLineSerial, p1: ln.p1, p2: ln.p2, actionId: actionCount });
-					// entrySerial = logEntries.length;
+					userLineSerial++;
 					const ul = {
 						id: userLineSerial,
 						serial: userLineSerial,
@@ -178,6 +173,7 @@ if (typeof changes.replay === 'function') {
 		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
+		renderLog();
 		return res;
 	};
 }
@@ -186,10 +182,8 @@ if (typeof changes.replay === 'function') {
 geo.undo = function() {
 	const result = orig_undo.apply(this, arguments);
 	if (userLines.length > 0) {
-		// remove lines matching the last actionCount
-		userLines = userLines.filter(ln => ln.actionId < actionCount);
-		logEntries = logEntries.filter(entry => !entry.startsWith('UserLine') || !entry.includes(`action ${actionCount}`));
-		entrySerial = logEntries.length;
+		const lastAction = actionCount;
+		userLines = userLines.filter(ln => ln.actionId < lastAction);
 	}
 	renderLog();
 	return result;
