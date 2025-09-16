@@ -40,12 +40,24 @@ function updateFooter() {
 function renderLog() {
 	if (!coordBar) return;
 	coordBar.innerHTML = '';
+
+	// Engine entries
 	for (let i = 0; i < logEntries.length; i++) {
 		const div = document.createElement('div');
 		div.textContent = logEntries[i];
-		div.className = 'coord-entry';
+		div.className = 'coord-entry engine';
 		coordBar.appendChild(div);
 	}
+
+	// UserLine entries
+	for (let i = 0; i < userLines.length; i++) {
+		const ul = userLines[i];
+		const div = document.createElement('div');
+		div.textContent = `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, #${ul.serial}]`;
+		div.className = 'coord-entry user';
+		coordBar.appendChild(div);
+	}
+
 	coordBar.appendChild(footerDiv);
 	updateFooter();
 }
@@ -134,12 +146,21 @@ changes.record = function(finished) {
 
 			// flush pending userLines for this action
 			if (userLinesPending.length > 0) {
-				for (const ln of userLinesPending) {
-					userLineSerial++;
-					const lineStr = `UserLine ${userLineSerial}: ${ln.p1.x},${ln.p1.y} → ${ln.p2.x},${ln.p2.y} [user, action ${actionCount}]`;
-					logEntries.push(lineStr);
-					userLines.push({ id: userLineSerial, p1: ln.p1, p2: ln.p2, actionId: actionCount });
-					entrySerial = logEntries.length;
+				for (let p of userLinesPending) {
+					// old code for reference
+					// userLineSerial++;
+					// const lineStr = `UserLine ${userLineSerial}: ${ln.p1.x},${ln.p1.y} → ${ln.p2.x},${ln.p2.y} [user, action ${actionCount}]`;
+					// logEntries.push(lineStr);
+					// userLines.push({ id: userLineSerial, p1: ln.p1, p2: ln.p2, actionId: actionCount });
+					// entrySerial = logEntries.length;
+					const ul = {
+						id: userLineSerial,
+						serial: userLineSerial,
+						p1: p.p1,
+						p2: p.p2,
+						actionId: actionCount
+					};
+					userLines.push(ul);
 				}
 				userLinesPending = [];
 			}
