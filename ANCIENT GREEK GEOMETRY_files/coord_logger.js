@@ -188,10 +188,15 @@ geo.undo = function() {
 	if (userLines.length > 0) {
 		// Remove all userLines from the last action
 		const lastActionId = Math.max(...userLines.map(ln => ln.actionId));
-		const removed = userLines.filter(ln => ln.actionId === lastActionId);
 		userLines = userLines.filter(ln => ln.actionId < lastActionId);
-		// decrement serial by number removed
-		userLineSerial -= removed.length;
+		const REMOVE_METHOD_FLAG = true;
+		if (REMOVE_METHOD_FLAG === true) {
+			const removed = userLines.filter(ln => ln.actionId === lastActionId);  // comment for = removed.length;
+			// decrement serial by number removed         // comment for  alt
+			userLineSerial -= removed.length;             // alt
+		} else {
+			userLineSerial = userLines.length; // resync serial
+		}
 		if (userLineSerial < 0) userLineSerial = 0;
 	}
 
