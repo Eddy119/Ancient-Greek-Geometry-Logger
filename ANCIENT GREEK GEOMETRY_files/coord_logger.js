@@ -190,12 +190,14 @@ geo.undo = function() {
 	if (userLines.length > 0) {
 		// Remove all userLines from the last action
 		const lastActionId = Math.max(...userLines.map(ln => ln.actionId));
+		// Capture userLines to decrement serial if REMOVED_METHOD_FLAG = true
+		let removed = userLines.filter(ln => ln.actionId === lastActionId);  // comment for = removed.length;
 		console.log("Trying to remove actionId", lastActionId);
+		//Actually remove userLines
 		userLines = userLines.filter(ln => ln.actionId < lastActionId);
 		const REMOVE_METHOD_FLAG = true;
-		if (REMOVE_METHOD_FLAG === true) {
+		if (REMOVE_METHOD_FLAG) {
 			console.log("REMOVE_METHOD_FLAG = ",REMOVE_METHOD_FLAG,", Trying to remove actionId", lastActionId);
-			const removed = userLines.filter(ln => ln.actionId === lastActionId);  // comment for = removed.length;
 			// decrement serial by number removed         // comment for  alt
 			userLineSerial -= removed.length;             // alt
 		} else {
@@ -203,7 +205,11 @@ geo.undo = function() {
 			userLineSerial = userLines.length; // resync serial
 		}
 		if (userLineSerial < 0) userLineSerial = 0;
-		console.log("Removed", removed.length, "new length", userLines.length, "serial", userLineSerial);
+		if (typeof removed !== 'undefined') {
+			console.log("Removed", removed.length, "new length", userLines.length, "serial", userLineSerial);
+		} else {
+			console.log("removed.length doesn't exist", "new length", userLines.length, "serial", userLineSerial);
+		}
 	}
 
 	renderLog();
