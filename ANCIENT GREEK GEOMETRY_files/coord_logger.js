@@ -139,7 +139,7 @@ function intersectLineLine(a, b, c, d) {
 	const x3 = pc?.x ?? `p${c}x`, y3 = pc?.y ?? `p${c}y`;
 	const x4 = pd?.x ?? `p${d}x`, y4 = pd?.y ?? `p${d}y`;
 	
-	const vars = { x1, y1, x2, y2, x3, y3, x4, y4, D };
+	const vars = { x1, y1, x2, y2, x3, y3, x4, y4 };
 	const r = smartRoundVars(vars);
 
 	// denominator
