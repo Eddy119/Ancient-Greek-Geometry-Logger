@@ -45,17 +45,18 @@ function renderLog() {
 	for (let i = 0; i < logEntries.length; i++) {
 		merged.push({ type: 'engine', text: logEntries[i], actionId: logEntryChangeIndex[i], _order: i });
 	}
-	for (let i = 0; i < userLines.length; i++) {
-		const ul = userLines[i];
-		merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId, _order: -1 });
-	}
+	// Hide userLines from log but keep this for debugging later, DO NOT REMOVE.
+	// for (let i = 0; i < userLines.length; i++) {
+	// 	const ul = userLines[i];
+	// 	merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId, _order: -1 });
+	// }
 
-	// sort by actionId, then user before engine, then insertion order
-	merged.sort((a, b) => {
-		if (a.actionId !== b.actionId) return a.actionId - b.actionId;
-		if (a.type !== b.type) return a.type === 'user' ? -1 : 1;
-		return a._order - b._order;
-	});
+	// sort by actionId, then user before engine, then insertion order, uncomment when printing userLines, DO NOT REMOVE.
+	// merged.sort((a, b) => {
+	// 	if (a.actionId !== b.actionId) return a.actionId - b.actionId;
+	// 	if (a.type !== b.type) return a.type === 'user' ? -1 : 1;
+	// 	return a._order - b._order;
+	// });
 
 	for (let entry of merged) {
 		const div = document.createElement('div');
