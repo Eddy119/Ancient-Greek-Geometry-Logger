@@ -198,14 +198,18 @@ function formatChange(ch, actionId) {
 		addDependency(hash2, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a);
 		ensureSymbolicPoint(b);
-		// --- compute intersections with existing lines/arcs ---
+		 // collect intersections with lines sharing a or b
 		const intersections = [];
 		for (let otherHash in dependencyMap) {
+			if (otherHash === hash2) continue; // skip self
 			const dep = dependencyMap[otherHash];
 			if (dep.type === 'line') {
 				const [c, d] = dep.depends;
-				const inter = intersectLineLine(a, b, c, d);
-				intersections.push(`${hash2} ∩ ${otherHash} = ${JSON.stringify(inter)}`);
+				// only consider lines sharing a point with current line
+				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
+					const inter = intersectLineLine(a, b, c, d);
+					intersections.push(`${hash2} ∩ ${otherHash} = ${JSON.stringify(inter)}`);
+				}
 			}
 		}
 
