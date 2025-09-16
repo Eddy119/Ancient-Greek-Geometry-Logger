@@ -110,6 +110,11 @@ function formatChange(ch, actionId) {
 		addDependency(hash, [a, b]);  // arc defined by points a, b
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'realline') {
+		const hash = `${a}L${b}`;
+		const currentHash = window.location.hash || '';
+		if (!currentHash.includes(hash)) {
+			return null; // hide phantom line
+		}
 		// trying to print a,b
 		const pa = window.points?.[a]; // works
 		const pb = window.points?.[b]; // works
