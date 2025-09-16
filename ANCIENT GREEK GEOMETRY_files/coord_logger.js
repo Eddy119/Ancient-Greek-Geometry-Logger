@@ -198,7 +198,22 @@ function formatChange(ch, actionId) {
 		addDependency(hash2, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a);
 		ensureSymbolicPoint(b);
-		return `Action ${actionId}: Line ${hash2}`;
+		// --- compute intersections with existing lines/arcs ---
+		const intersections = [];
+		for (let otherHash in dependencyMap) {
+			const dep = dependencyMap[otherHash];
+			if (dep.type === 'line') {
+				const [c, d] = dep.depends;
+				const inter = intersectLineLine(a, b, c, d);
+				intersections.push(`${hash2} ∩ ${otherHash} = ${JSON.stringify(inter)}`);
+			}
+		}
+
+		// combine log string
+		let logStr = `Action ${actionId}: Line ${hash2}`;
+		if (intersections.length > 0) {
+			logStr += ` | Intersections:\n  ` + intersections.join('\n  ');
+		}
 	} else if (ch.type === 'newlayer') {
 		addDependency(`LAYER${actionId}`, { type: 'layer', depends: [], actionId });
 		return `Action ${actionId}: NewLayer`;
