@@ -146,22 +146,17 @@ changes.record = function(finished) {
 		logEntries = [];
 		logEntryChangeIndex = [];
 		entrySerial = 0;
-		userLines = []; // don't reset
-		userLineSerial = 0;
+		// userLines = []; // don't reset
+		// userLineSerial = 0;
 
 		for (let j = 1; j <= currentLastJump; j++) {
 			const actionId = j - 1;
 
-			// flush userLines for this action first
+			// after finishing log rebuild for this record: flush userLines for this action first
 			if (userLinesPending.length > 0) {
 				for (let p of userLinesPending) {
 					userLineSerial++;
-					const ul = {
-						id: userLineSerial,
-						p1: p.p1,
-						p2: p.p2,
-						actionId
-					};
+					const ul = { id: userLineSerial, p1: p.p1, p2: p.p2, actionId: currentLastJump - 1 };
 					userLines.push(ul);
 				}
 				userLinesPending = [];
