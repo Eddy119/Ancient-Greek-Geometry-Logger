@@ -180,12 +180,14 @@ if (typeof changes.replay === 'function') {
 
 // hook undo to also remove userLines
 geo.undo = function() {
-	const prevAction = actionCount; // snapshot before undo
+	//const prevAction = actionCount; // snapshot before undo
 	const result = orig_undo.apply(this, arguments);
 
 	if (userLines.length > 0) {
-		userLines = userLines.filter(ln => ln.actionId < prevAction);
-		userLineSerial = userLines.length;
+		// Remove all userLines from the last action
+		const lastActionId = Math.max(...userLines.map(ln => ln.actionId));
+		userLines = userLines.filter(ln => ln.actionId < lastActionId);
+		userLineSerial = userLines.length; // resync serial
 	}
 
 	renderLog();
