@@ -23,7 +23,7 @@ let userLineSerial = 0;       // monotonic id for user lines
 // dependency tracking
 let dependencyMap = {};
 
-// symbolic points dictionary
+// symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
 	0: { x: '0', y: '0' },
 	1: { x: '1', y: '0' },
@@ -45,6 +45,33 @@ function updateFooter() {
 	if (!coordBar.contains(footerDiv)) coordBar.appendChild(footerDiv);
 }
 
+function ensureSymbolicPoint(id) {
+	if (typeof id === 'undefined' || id === null) return;
+	if (symbolicPoints[id]) return;
+	// Prefer to seed from known exact points if you extend this later.
+	// For now create a placeholder symbolic name like p{id}.
+	symbolicPoints[id] = { x: `p${id}`, y: `p${id}` };
+}
+
+function renderDependencyMap() {
+	const div = document.createElement('div');
+	div.style.marginTop = '8px';
+	div.style.fontSize = '11px';
+	document.createTextNode('');
+	const title = document.createElement('div');
+	title.textContent = 'Dependencies (hash → depends)';
+	title.style.fontWeight = '600';
+	div.appendChild(title);
+	for (let k of Object.keys(dependencyMap)) {
+		const info = dependencyMap[k];
+		const li = document.createElement('div');
+		li.textContent = `${k} → ${info.type} : ${JSON.stringify(info.depends)}`;
+		li.style.fontSize = '11px';
+		div.appendChild(li);
+	}
+	return div;
+}
+
 function renderLog() {
 	if (!coordBar) return;
 	coordBar.innerHTML = '';
@@ -54,18 +81,19 @@ function renderLog() {
 	for (let i = 0; i < logEntries.length; i++) {
 		merged.push({ type: 'engine', text: logEntries[i], actionId: logEntryChangeIndex[i], _order: i });
 	}
+
+	// we keep userLines hidden in the UI by default; they remain available in userLines[].
 	// Hide userLines from log but keep this for debugging later, DO NOT REMOVE.
 	// for (let i = 0; i < userLines.length; i++) {
 	// 	const ul = userLines[i];
 	// 	merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId, _order: -1 });
 	// }
 
-	// sort by actionId, then user before engine, then insertion order, uncomment when printing userLines, DO NOT REMOVE.
-	// merged.sort((a, b) => {
-	// 	if (a.actionId !== b.actionId) return a.actionId - b.actionId;
-	// 	if (a.type !== b.type) return a.type === 'user' ? -1 : 1;
-	// 	return a._order - b._order;
-	// });
+	// sort purely by actionId and order
+	merged.sort((a, b) => {
+		if (a.actionId !== b.actionId) return a.actionId - b.actionId;
+		return a._order - b._order;
+	});
 
 	for (let entry of merged) {
 		const div = document.createElement('div');
@@ -73,6 +101,10 @@ function renderLog() {
 		div.className = entry.type === 'engine' ? 'coord-entry engine' : 'coord-entry user';
 		coordBar.appendChild(div);
 	}
+
+	// append dependency map for debugging
+	const depDiv = renderDependencyMap();
+	coordBar.appendChild(depDiv);
 
 	coordBar.appendChild(footerDiv);
 	updateFooter();
@@ -89,6 +121,7 @@ function clearLog() {
 	userLinesPending = [];
 	userLineSerial = 0;
 	dependencyMap = {};
+	// reset symbolic seeds but keep extensibility
 	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' }, 2: { x: '0', y: '1' } };
 	if (coordBar) coordBar.innerHTML = '';
 }
@@ -102,7 +135,7 @@ function addDependency(hash, info) {
 // formatting helper
 function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
-	if (ch.type === 'line') return null; // skip plain 'line' entries
+	if (ch.type === 'line') return null; // skip raw split 'line' entries
 	const rm = realmoveCount;
 	let a = (typeof ch.a !== 'undefined') ? ch.a : (typeof ch.obj?.a !== 'undefined' ? ch.obj.a : '?');
 	let b = (typeof ch.b !== 'undefined') ? ch.b : (typeof ch.obj?.b !== 'undefined' ? ch.obj.b : '?');
@@ -114,31 +147,37 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		addDependency(hash, { type: 'arc', depends: [a, b] }); // arc defined by points a, b
+		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId }); // arc defined by points a, b
+		// ensure placeholders exist for a/b (centres/edges)
+		ensureSymbolicPoint(a);
+		ensureSymbolicPoint(b);
 		let symCentre = symbolicPoints[a] ? `(${symbolicPoints[a].x}, ${symbolicPoints[a].y})` : '';
 		let symEdge = symbolicPoints[b] ? `(${symbolicPoints[b].x}, ${symbolicPoints[b].y})` : '';
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy}${symCentre ? ' ~ ' + symCentre : ''} | edge ${ex},${ey}${symEdge ? ' ~ ' + symEdge : ''} | r=${r} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'realline') {
-		const hash = `${a}L${b}`;
+		const hash2 = `${a}L${b}`;
 		const currentHash = window.location.hash || '';
-		if (!currentHash.includes(hash)) return null; // hide phantom line
+		// hide split/generated lines that don't appear in the page hash
+		if (!currentHash.includes(hash2)) return null;
+		// lookup true endpoints from global points table
 		const pa = window.points?.[a];
 		const pb = window.points?.[b];
 		let xa = pa?.x ?? '??', ya = pa?.y ?? '??';
 		let xb = pb?.x ?? '??', yb = pb?.y ?? '??';
 		// const x1 = ch.obj?.point1?.x ?? '??'; // these 4 print weird
-		// const y1 = ch.obj?.point1?.y ?? '??';
-		// const x2 = ch.obj?.point2?.x ?? '??';
-		// const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		addDependency(hash, { type: 'line', depends: [a, b] }); // line defined by points a, b
+		addDependency(hash2, { type: 'line', depends: [a, b], obj: ch.obj, actionId }); // line defined by points a, b
+		// ensure symbolic placeholders
+		ensureSymbolicPoint(a);
+		ensureSymbolicPoint(b);
 		let symA = symbolicPoints[a] ? `(${symbolicPoints[a].x}, ${symbolicPoints[a].y})` : '';
 		let symB = symbolicPoints[b] ? `(${symbolicPoints[b].x}, ${symbolicPoints[b].y})` : '';
 		// return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa: ${xa},${ya} → pb: ${xb},${yb}`;
-		return `Action ${actionId}: Line ${hash} — ${xa},${ya}${symA ? ' ~ ' + symA : ''} → ${xb},${yb}${symB ? ' ~ ' + symB : ''} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
+		return `Action ${actionId}: Line ${hash2} — ${xa},${ya}${symA ? ' ~ ' + symA : ''} → ${xb},${yb}${symB ? ' ~ ' + symB : ''} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'newlayer') {
-		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
+		addDependency(`LAYER${actionId}`, { type: 'layer', depends: [], actionId });
+		return `Action ${actionId}: NewLayer [#${entrySerial+1}, move ${rm}]`;
 	}
 	return null;
 }
@@ -169,15 +208,18 @@ changes.record = function(finished) {
 		logEntries = [];
 		logEntryChangeIndex = [];
 		entrySerial = 0;
+
 		for (let j = 1; j <= currentLastJump; j++) {
 			const actionId = j - 1;
 
-			// after finishing log rebuild for this record: flush userLines for this action first
+			// flush userLinesPending for this action (attach to this actionId)
 			if (userLinesPending.length > 0) {
 				for (let p of userLinesPending) {
 					userLineSerial++;
-					const ul = { id: userLineSerial, p1: p.p1, p2: p.p2, actionId: currentLastJump - 1 };
+					const ul = { id: userLineSerial, p1: p.p1, p2: p.p2, actionId };
 					userLines.push(ul);
+					// also add to dependencyMap as userLine (we don't need this)
+					// addDependency(`UL${ul.id}`, { type: 'userLine', from: [ul.p1, ul.p2], actionId });
 				}
 				userLinesPending = [];
 			}
@@ -192,6 +234,7 @@ changes.record = function(finished) {
 				}
 			}
 		}
+
 		lastProcessedJump = currentLastJump;
 		renderLog();
 	}
@@ -231,3 +274,5 @@ geo.resetall = function() {
 	clearLog();
 	return orig_reset.apply(this, arguments);
 };
+
+// End of logger
