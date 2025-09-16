@@ -71,6 +71,8 @@ Add this to CSS
     font-size: 12px;
     text-align: left;
     padding: 5px;
+	display: flex;
+	flex-direction: column-reverse;
 }
 
 #coordheader {
