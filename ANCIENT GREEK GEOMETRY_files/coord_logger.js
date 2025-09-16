@@ -191,10 +191,13 @@ if (typeof changes.replay === 'function') {
 // hook undo to remove userLines that belonged to removed actions
 changes.undo = function() {
 	console.log('changes.undo called');
-	// run engine undo first
-	const res = orig_undo.apply(this, arguments);
+	// check lastpoint BEFORE running engine undo
 	if (!lastpoint) {
 		console.log('undoing finished actions, not draw attempts');
+	}
+	// run engine undo
+	const res = orig_undo.apply(this, arguments);
+	if (!lastpoint) {
 		// after undo, determine current last action (based on jumps) and drop any userLines beyond it
 		const currentLastJump = (changes && changes.jumps && changes.jumps.length > 0) ? changes.jumps.length - 1 : 0;
 		const removed = userLines.filter(ln => ln.actionId > currentLastJump);
