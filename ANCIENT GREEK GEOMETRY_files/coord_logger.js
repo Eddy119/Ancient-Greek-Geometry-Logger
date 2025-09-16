@@ -1,8 +1,7 @@
-// Geometry Logger – changes.record-driven with user-line tracking
-// - Keeps separate userLines (unsplit user lines) logged inline
-// - Groups actions (engine) and keeps userLines linked to the action they belong to
-// - To do: Add dependency map for later symbolic math
-// - Robust undo/resync: rebuilds logs each record
+// Geometry Logger with symbolic groundwork
+// - Logs arcs/lines/layers with dependency map
+// - Tracks user lines separately
+// - Begins symbolic logging: seed symbolic points, print symbolic coords alongside numeric
 
 'use strict';
 
@@ -23,6 +22,13 @@ let userLineSerial = 0;       // monotonic id for user lines
 
 // dependency tracking
 let dependencyMap = {};
+
+// symbolic points dictionary
+let symbolicPoints = {
+	0: { x: '0', y: '0' },
+	1: { x: '1', y: '0' },
+	2: { x: '0', y: '1' }
+};
 
 // --- footer element ---
 let footerDiv = document.createElement('div');
@@ -83,13 +89,14 @@ function clearLog() {
 	userLinesPending = [];
 	userLineSerial = 0;
 	dependencyMap = {};
+	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' }, 2: { x: '0', y: '1' } };
 	if (coordBar) coordBar.innerHTML = '';
 }
 
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
-function addDependency(hash, deps) {
-	dependencyMap[hash] = deps;
+function addDependency(hash, info) {
+	dependencyMap[hash] = info;
 }
 
 // formatting helper
@@ -107,30 +114,29 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		addDependency(hash, [a, b]);  // arc defined by points a, b
-		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, move ${rm}]`;
+		addDependency(hash, { type: 'arc', depends: [a, b] }); // arc defined by points a, b
+		let symCentre = symbolicPoints[a] ? `(${symbolicPoints[a].x}, ${symbolicPoints[a].y})` : '';
+		let symEdge = symbolicPoints[b] ? `(${symbolicPoints[b].x}, ${symbolicPoints[b].y})` : '';
+		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy}${symCentre ? ' ~ ' + symCentre : ''} | edge ${ex},${ey}${symEdge ? ' ~ ' + symEdge : ''} | r=${r} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'realline') {
 		const hash = `${a}L${b}`;
 		const currentHash = window.location.hash || '';
-		if (!currentHash.includes(hash)) {
-			return null; // hide phantom line
-		}
-		// trying to print a,b
-		const pa = window.points?.[a]; // works
-		const pb = window.points?.[b]; // works
+		if (!currentHash.includes(hash)) return null; // hide phantom line
+		const pa = window.points?.[a];
+		const pb = window.points?.[b];
 		let xa = pa?.x ?? '??', ya = pa?.y ?? '??';
 		let xb = pb?.x ?? '??', yb = pb?.y ?? '??';
-		// return `Action ${actionId}: Line ${a}L${b} — ${xa},${ya} → ${xb},${yb} [#${entrySerial+1}, real ${rm}]`;
-		// end of trying a,b
-		const x1 = ch.obj?.point1?.x ?? '??';
-		const y1 = ch.obj?.point1?.y ?? '??';
-		const x2 = ch.obj?.point2?.x ?? '??';
-		const y2 = ch.obj?.point2?.y ?? '??';
+		// const x1 = ch.obj?.point1?.x ?? '??'; // these 4 print weird
+		// const y1 = ch.obj?.point1?.y ?? '??';
+		// const x2 = ch.obj?.point2?.x ?? '??';
+		// const y2 = ch.obj?.point2?.y ?? '??';
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		addDependency(hash, [a, b]);  // line defined by points a, b
+		addDependency(hash, { type: 'line', depends: [a, b] }); // line defined by points a, b
+		let symA = symbolicPoints[a] ? `(${symbolicPoints[a].x}, ${symbolicPoints[a].y})` : '';
+		let symB = symbolicPoints[b] ? `(${symbolicPoints[b].x}, ${symbolicPoints[b].y})` : '';
 		// return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa: ${xa},${ya} → pb: ${xb},${yb}`;
-		return `Action ${actionId}: Line ${hash} — ${xa},${ya} → ${xb},${yb} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
+		return `Action ${actionId}: Line ${hash} — ${xa},${ya}${symA ? ' ~ ' + symA : ''} → ${xb},${yb}${symB ? ' ~ ' + symB : ''} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'newlayer') {
 		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
@@ -163,9 +169,6 @@ changes.record = function(finished) {
 		logEntries = [];
 		logEntryChangeIndex = [];
 		entrySerial = 0;
-		// userLines = []; // don't reset
-		// userLineSerial = 0;
-
 		for (let j = 1; j <= currentLastJump; j++) {
 			const actionId = j - 1;
 
@@ -189,7 +192,6 @@ changes.record = function(finished) {
 				}
 			}
 		}
-
 		lastProcessedJump = currentLastJump;
 		renderLog();
 	}
@@ -229,5 +231,3 @@ geo.resetall = function() {
 	clearLog();
 	return orig_reset.apply(this, arguments);
 };
-
-// End of logger
