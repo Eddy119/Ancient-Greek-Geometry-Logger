@@ -41,20 +41,23 @@ function renderLog() {
 	if (!coordBar) return;
 	coordBar.innerHTML = '';
 
-	// Engine entries
+	// Merge engine + userLines by actionId
+	let merged = [];
 	for (let i = 0; i < logEntries.length; i++) {
-		const div = document.createElement('div');
-		div.textContent = logEntries[i];
-		div.className = 'coord-entry engine';
-		coordBar.appendChild(div);
+		merged.push({ type: 'engine', text: logEntries[i], actionId: logEntryChangeIndex[i] });
 	}
-
-	// UserLine entries
 	for (let i = 0; i < userLines.length; i++) {
 		const ul = userLines[i];
+		merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId });
+	}
+
+	// sort by actionId, then by insertion order
+	merged.sort((a, b) => a.actionId - b.actionId);
+
+	for (let entry of merged) {
 		const div = document.createElement('div');
-		div.textContent = `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`;
-		div.className = 'coord-entry user';
+		div.textContent = entry.text;
+		div.className = entry.type === 'engine' ? 'coord-entry engine' : 'coord-entry user';
 		coordBar.appendChild(div);
 	}
 
@@ -180,20 +183,21 @@ if (typeof changes.replay === 'function') {
 
 // hook undo to also remove userLines
 geo.undo = function() {
-	//const prevAction = actionCount; // snapshot before undo
 	const result = orig_undo.apply(this, arguments);
 
 	if (userLines.length > 0) {
 		// Remove all userLines from the last action
 		const lastActionId = Math.max(...userLines.map(ln => ln.actionId));
+		const removed = userLines.filter(ln => ln.actionId === lastActionId);
 		userLines = userLines.filter(ln => ln.actionId < lastActionId);
-		userLineSerial = userLines.length; // resync serial
+		// decrement serial by number removed
+		userLineSerial -= removed.length;
+		if (userLineSerial < 0) userLineSerial = 0;
 	}
 
 	renderLog();
 	return result;
 };
-
 
 // Reset hook
 const orig_reset = geo.resetall;
