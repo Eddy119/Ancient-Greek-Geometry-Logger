@@ -98,7 +98,7 @@ function formatChange(ch, actionId) {
 		const ex = ch.obj?.edge?.x ?? '??';
 		const ey = ch.obj?.edge?.y ?? '??';
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
-		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'realline') {
 		// trying to print a,b
 		const pa = window.points?.[a]; // works
@@ -114,7 +114,7 @@ function formatChange(ch, actionId) {
 		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
 		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
 		// return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa: ${xa},${ya} → pb: ${xb},${yb}`;
-		return `Action ${actionId}: Line ${hash} — ${xa},${ya} → ${xb},${yb} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
+		return `Action ${actionId}: Line ${hash} — ${xa},${ya} → ${xb},${yb} | angle=${angle} | len=${len} [#${entrySerial+1}, move ${rm}]`;
 	} else if (ch.type === 'newlayer') {
 		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
