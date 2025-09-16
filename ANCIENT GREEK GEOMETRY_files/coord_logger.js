@@ -183,21 +183,27 @@ if (typeof changes.replay === 'function') {
 
 // hook undo to also remove userLines
 geo.undo = function() {
+	console.log("Before undo: userLines=", userLines.map(u => u.actionId), 
+                "userLineSerial=", userLineSerial, "actionCount=", actionCount);
 	const result = orig_undo.apply(this, arguments);
 
 	if (userLines.length > 0) {
 		// Remove all userLines from the last action
 		const lastActionId = Math.max(...userLines.map(ln => ln.actionId));
+		console.log("Trying to remove actionId", lastActionId);
 		userLines = userLines.filter(ln => ln.actionId < lastActionId);
 		const REMOVE_METHOD_FLAG = true;
 		if (REMOVE_METHOD_FLAG === true) {
+			console.log("REMOVE_METHOD_FLAG = ",REMOVE_METHOD_FLAG,", Trying to remove actionId", lastActionId);
 			const removed = userLines.filter(ln => ln.actionId === lastActionId);  // comment for = removed.length;
 			// decrement serial by number removed         // comment for  alt
 			userLineSerial -= removed.length;             // alt
 		} else {
+			console.log("REMOVE_METHOD_FLAG = ",REMOVE_METHOD_FLAG,", Trying to remove actionId", lastActionId);
 			userLineSerial = userLines.length; // resync serial
 		}
 		if (userLineSerial < 0) userLineSerial = 0;
+		console.log("Removed", removed.length, "new length", userLines.length, "serial", userLineSerial);
 	}
 
 	renderLog();
