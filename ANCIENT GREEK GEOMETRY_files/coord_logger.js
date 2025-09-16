@@ -1,8 +1,8 @@
 // Geometry Logger – changes.record-driven with user-line tracking
 // - Keeps separate userLines (unsplit user lines) logged inline
 // - Groups actions (engine) and keeps userLines linked to the action they belong to
-// - Robust undo for userLines only: trusts engine (changes.jumps)
-// - Adds dependency map for later symbolic math
+// - To do: Add dependency map for later symbolic math
+// - Robust undo/resync: rebuilds logs each record
 
 'use strict';
 
@@ -20,9 +20,6 @@ let lastProcessedJump = 0;
 let userLines = [];           // committed user lines
 let userLinesPending = [];    // pending user lines (awaiting next changes.record)
 let userLineSerial = 0;       // monotonic id for user lines
-
-// dependency tracking
-let dependencies = {}; // map of hash/id → {type, from, obj, actionId}
 
 // --- footer element ---
 let footerDiv = document.createElement('div');
@@ -50,12 +47,13 @@ function renderLog() {
 	}
 	for (let i = 0; i < userLines.length; i++) {
 		const ul = userLines[i];
-		merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId, _order: logEntries.length + i });
+		merged.push({ type: 'user', text: `UserLine ${ul.id}: ${ul.p1.x},${ul.p1.y} → ${ul.p2.x},${ul.p2.y} [user, action ${ul.actionId}]`, actionId: ul.actionId, _order: -1 });
 	}
 
-	// sort by actionId, then by insertion order (_order)
+	// sort by actionId, then user before engine, then insertion order
 	merged.sort((a, b) => {
 		if (a.actionId !== b.actionId) return a.actionId - b.actionId;
+		if (a.type !== b.type) return a.type === 'user' ? -1 : 1;
 		return a._order - b._order;
 	});
 
@@ -80,7 +78,6 @@ function clearLog() {
 	userLines = [];
 	userLinesPending = [];
 	userLineSerial = 0;
-	dependencies = {};
 	if (coordBar) coordBar.innerHTML = '';
 }
 
@@ -95,9 +92,6 @@ function formatChange(ch, actionId) {
 	let b = (typeof ch.b !== 'undefined') ? ch.b : (typeof ch.obj?.b !== 'undefined' ? ch.obj.b : '?');
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
 
-	// record dependency
-	dependencies[hash] = { type: ch.type, from: [a, b], obj: ch.obj, actionId };
-
 	if (ch.type === 'arc') {
 		const cx = ch.obj?.centre?.x ?? '??';
 		const cy = ch.obj?.centre?.y ?? '??';
@@ -106,13 +100,11 @@ function formatChange(ch, actionId) {
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'realline') {
-		const x1 = ch.obj?.point1?.x ?? '??';
-		const y1 = ch.obj?.point1?.y ?? '??';
-		const x2 = ch.obj?.point2?.x ?? '??';
-		const y2 = ch.obj?.point2?.y ?? '??';
-		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
-		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
-		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}]`;
+		const pa = changes[a]?.obj;
+		const pb = changes[b]?.obj;
+		let xa = pa?.x ?? '??', ya = pa?.y ?? '??';
+		let xb = pb?.x ?? '??', yb = pb?.y ?? '??';
+		return `Action ${actionId}: Line ${a}L${b} — ${xa},${ya} → ${xb},${yb} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'newlayer') {
 		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
@@ -133,7 +125,7 @@ window.makeline = function(p1, p2) {
 	return result;
 };
 
-// --- changes.record wrapper: processes new jumps and flushes pending user lines ---
+// --- changes.record wrapper ---
 changes.record = function(finished) {
 	const result = original_record.apply(this, arguments);
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
@@ -141,15 +133,32 @@ changes.record = function(finished) {
 	if (changes && changes.jumps && changes.jumps.length > 1) {
 		const currentLastJump = changes.jumps.length - 1;
 
-		// trim engine logs if needed
-		logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] <= currentLastJump);
-		logEntryChangeIndex = logEntryChangeIndex.filter(idx => idx <= currentLastJump);
-		entrySerial = logEntries.length;
+		// Rebuild logs fresh each time
+		logEntries = [];
+		logEntryChangeIndex = [];
+		entrySerial = 0;
+		userLines = [];
+		userLineSerial = 0;
 
-		for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-			const actionId = j - 1; // user-facing action id
+		for (let j = 1; j <= currentLastJump; j++) {
+			const actionId = j - 1;
 
-			// push engine-formatted entries belonging to this action
+			// flush userLines for this action first
+			if (userLinesPending.length > 0) {
+				for (let p of userLinesPending) {
+					userLineSerial++;
+					const ul = {
+						id: userLineSerial,
+						p1: p.p1,
+						p2: p.p2,
+						actionId
+					};
+					userLines.push(ul);
+				}
+				userLinesPending = [];
+			}
+
+			// engine entries
 			for (let k = changes.jumps[j - 1]; k < changes.jumps[j]; k++) {
 				const formatted = formatChange(changes[k], actionId);
 				if (formatted) {
@@ -158,24 +167,11 @@ changes.record = function(finished) {
 					entrySerial = logEntries.length;
 				}
 			}
-
-			// flush pending userLines for this action
-			if (userLinesPending.length > 0) {
-				for (let p of userLinesPending) {
-					userLineSerial++;
-					const ul = { id: userLineSerial, p1: p.p1, p2: p.p2, actionId };
-					userLines.push(ul);
-					dependencies[`UL${ul.id}`] = { type: 'userLine', from: [ul.p1, ul.p2], actionId: ul.actionId };
-				}
-				userLinesPending = [];
-			}
 		}
 
 		lastProcessedJump = currentLastJump;
 		renderLog();
-		return result;
 	}
-
 	return result;
 };
 
@@ -191,17 +187,15 @@ if (typeof changes.replay === 'function') {
 	};
 }
 
-// hook undo to remove userLines that belonged to removed actions (engine handles its own)
+// hook undo to remove userLines that belonged to removed actions
 changes.undo = function() {
 	const res = orig_undo.apply(this, arguments);
 	if (!lastpoint) {
-		// new last action id after engine undo
 		const currentLastJump = (changes && changes.jumps && changes.jumps.length > 0) ? changes.jumps.length - 1 : 0;
 		const removed = userLines.filter(ln => ln.actionId >= currentLastJump);
 		if (removed.length > 0) {
 			userLines = userLines.filter(ln => ln.actionId < currentLastJump);
-			userLineSerial -= removed.length;
-			if (userLineSerial < 0) userLineSerial = 0;
+			userLineSerial = userLines.length;
 		}
 		renderLog();
 	}
