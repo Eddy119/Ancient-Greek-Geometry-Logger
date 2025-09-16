@@ -138,9 +138,12 @@ function intersectLineLine(a, b, c, d) {
 	const x2 = pb?.x ?? `p${b}x`, y2 = pb?.y ?? `p${b}y`;
 	const x3 = pc?.x ?? `p${c}x`, y3 = pc?.y ?? `p${c}y`;
 	const x4 = pd?.x ?? `p${d}x`, y4 = pd?.y ?? `p${d}y`;
+	
+	const vars = { x1, y1, x2, y2, x3, y3, x4, y4, D };
+	const r = smartRoundVars(vars);
 
 	// denominator
-	const D = `(${x1.toFixed(4)} - ${x2.toFixed(4)}) * (${y3.toFixed(4)} - ${y4.toFixed(4)}) - (${y1.toFixed(4)} - ${y2.toFixed(4)}) * (${x3.toFixed(4)} - ${x4.toFixed(4)})`;
+	const D = `(${r.x1} - ${r.x2}) * (${r.y3} - ${r.y4}) - (${r.y1} - ${r.y2}) * (${r.x3} - ${r.x4})`;
 
 	if (Math.abs(D) < 1e-9) return {
 		x: `parallel`,
@@ -150,12 +153,25 @@ function intersectLineLine(a, b, c, d) {
 
 	// return a symbolic object
 	return {
-		x: `((${x1.toFixed(4)}*${y2.toFixed(4)} - ${y1.toFixed(4)}*${x2.toFixed(4)}) * (${x3.toFixed(4)} - ${x4.toFixed(4)}) - (${x1.toFixed(4)} - ${x2.toFixed(4)}) * (${x3.toFixed(4)}*${y4.toFixed(4)} - ${y3.toFixed(4)}*${x4.toFixed(4)})) / (${D}))`,
-		y: `((${x1.toFixed(4)}*${y2.toFixed(4)} - ${y1.toFixed(4)}*${x2.toFixed(4)}) * (${y3.toFixed(4)} - ${y4.toFixed(4)}) - (${y1.toFixed(4)} - ${y2.toFixed(4)}) * (${x3.toFixed(4)}*${y4.toFixed(4)} - ${y3.toFixed(4)}*${x4.toFixed(4)})) / (${D}))`,
+		x: `((${r.x1}*${r.y2} - ${r.y1}*${r.x2}) * (${r.x3} - ${r.x4}) - (${r.x1} - ${r.x2}) * (${r.x3}*${r.y4} - ${r.y3}*${r.x4})) / (${D}))`,
+		y: `((${r.x1}*${r.y2} - ${r.y1}*${r.x2}) * (${r.y3} - ${r.y4}) - (${r.y1} - ${r.y2}) * (${r.x3}*${r.y4} - ${r.y3}*${r.x4})) / (${D}))`,
 		den: D
 	};
 }
 
+function smartRoundVars(vars, dp = 4) {
+    // vars: object { x1, y1... }
+    const r = {};
+    for (let k in vars) {
+        if (typeof vars[k] === 'number') {
+            // integer → no decimals; otherwise round to dp
+            r[k] = Number.isInteger(vars[k]) ? vars[k].toString() : vars[k].toFixed(dp);
+        } else {
+            r[k] = vars[k]; // symbolic or string stays as-is
+        }
+    }
+    return r;
+}
 
 function intersectArcLine(a, b, c, d) {
 	// arc centre-edge a,b with line c,d
