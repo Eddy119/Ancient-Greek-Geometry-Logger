@@ -140,7 +140,7 @@ function intersectLineLine(a, b, c, d) {
 	const x4 = pd?.x ?? `p${d}x`, y4 = pd?.y ?? `p${d}y`;
 
 	// denominator
-	const D = `(${x1} - ${x2}) * (${y3} - ${y4}) - (${y1} - ${y2}) * (${x3} - ${x4})`;
+	const D = `(${x1.toFixed(4)} - ${x2.toFixed(4)}) * (${y3.toFixed(4)} - ${y4.toFixed(4)}) - (${y1.toFixed(4)} - ${y2.toFixed(4)}) * (${x3.toFixed(4)} - ${x4.toFixed(4)})`;
 
 	if (Math.abs(D) < 1e-9) return {
 		x: `parallel`,
@@ -150,8 +150,8 @@ function intersectLineLine(a, b, c, d) {
 
 	// return a symbolic object
 	return {
-		x: `((${x1}*${y2} - ${y1}*${x2}) * (${x3} - ${x4}) - (${x1} - ${x2}) * (${x3}*${y4} - ${y3}*${x4})) / (${D})`,
-		y: `((${x1}*${y2} - ${y1}*${x2}) * (${y3} - ${y4}) - (${y1} - ${y2}) * (${x3}*${y4} - ${y3}*${x4})) / (${D})`,
+		x: `((${x1.toFixed(4)}*${y2.toFixed(4)} - ${y1.toFixed(4)}*${x2.toFixed(4)}) * (${x3.toFixed(4)} - ${x4.toFixed(4)}) - (${x1.toFixed(4)} - ${x2.toFixed(4)}) * (${x3.toFixed(4)}*${y4.toFixed(4)} - ${y3.toFixed(4)}*${x4.toFixed(4)})) / (${D}))`,
+		y: `((${x1.toFixed(4)}*${y2.toFixed(4)} - ${y1.toFixed(4)}*${x2.toFixed(4)}) * (${y3.toFixed(4)} - ${y4.toFixed(4)}) - (${y1.toFixed(4)} - ${y2.toFixed(4)}) * (${x3.toFixed(4)}*${y4.toFixed(4)} - ${y3.toFixed(4)}*${x4.toFixed(4)})) / (${D}))`,
 		den: D
 	};
 }
