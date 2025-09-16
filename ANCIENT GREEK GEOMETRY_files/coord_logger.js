@@ -1,7 +1,7 @@
 // Geometry Logger – changes.record-driven with user-line tracking
 // - Keeps separate userLines (unsplit user lines) logged inline
 // - Groups actions (engine) and keeps userLines linked to the action they belong to
-// - Robust undo/resync using dedicated actionCounter
+// - Robust undo/resync: compares to changes.jumps after undo
 
 'use strict';
 
@@ -11,7 +11,7 @@ const nukerBtn = document.getElementById('coordnuker');
 let logEntries = [];
 let logEntryChangeIndex = []; // stores actionId for engine entries
 let entrySerial = 0;
-let actionCounter = 0; // clean user-facing action counter
+let actionCount = 0; // user-facing action id (derived from jumps)
 let realmoveCount = 0;
 let lastProcessedJump = 0;
 
@@ -31,7 +31,7 @@ function updateFooter() {
 	if (!coordBar) return;
 	let jumpsLen = changes && changes.jumps ? changes.jumps.length : 0;
 	let jumpsTail = (changes && changes.jumps) ? changes.jumps.slice(-5).join(',') : '';
-	footerDiv.textContent = `changes.len=${changes?.length ?? '??'} | jumps=${jumpsLen} [${jumpsTail}] | lastJump=${lastProcessedJump} | real=${realmoveCount} | log=${logEntries.length} | userLines=${userLines.length} | actionCounter=${actionCounter}`;
+	footerDiv.textContent = `changes.len=${changes?.length ?? '??'} | jumps=${jumpsLen} [${jumpsTail}] | lastJump=${lastProcessedJump} | real=${realmoveCount} | log=${logEntries.length} | userLines=${userLines.length}`;
 	if (!coordBar.contains(footerDiv)) coordBar.appendChild(footerDiv);
 }
 
@@ -70,7 +70,7 @@ function clearLog() {
 	logEntries = [];
 	logEntryChangeIndex = [];
 	entrySerial = 0;
-	actionCounter = 0;
+	actionCount = 0;
 	realmoveCount = 0;
 	lastProcessedJump = 0;
 	userLines = [];
@@ -134,14 +134,14 @@ changes.record = function(finished) {
 		const currentLastJump = changes.jumps.length - 1;
 
 		for (let j = Math.max(1, lastProcessedJump + 1); j <= currentLastJump; j++) {
-			actionCounter++; // bump once per new jump
+			const actionId = j - 1; // fudge factor back in
 
 			// push engine-formatted entries belonging to this action
 			for (let k = changes.jumps[j - 1]; k < changes.jumps[j]; k++) {
-				const formatted = formatChange(changes[k], actionCounter);
+				const formatted = formatChange(changes[k], actionId);
 				if (formatted) {
 					logEntries.push(formatted);
-					logEntryChangeIndex.push(actionCounter);
+					logEntryChangeIndex.push(actionId);
 					entrySerial = logEntries.length;
 				}
 			}
@@ -154,7 +154,7 @@ changes.record = function(finished) {
 						id: userLineSerial,
 						p1: p.p1,
 						p2: p.p2,
-						actionId: actionCounter
+						actionId: actionId
 					};
 					userLines.push(ul);
 				}
@@ -174,7 +174,7 @@ if (typeof changes.replay === 'function') {
 		clearLog();
 		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
-		actionCounter = 0;
+		actionCount = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
 		renderLog();
 		return res;
@@ -184,11 +184,11 @@ if (typeof changes.replay === 'function') {
 // hook undo to remove userLines and engine entries that belonged to removed actions
 changes.undo = function() {
 	if (!lastpoint) {
-		actionCounter = Math.max(0, actionCounter - 1);
-		userLines = userLines.filter(ln => ln.actionId <= actionCounter);
+		const currentLastJump = (changes && changes.jumps && changes.jumps.length > 0) ? changes.jumps.length - 1 : 0;
+		userLines = userLines.filter(ln => ln.actionId <= currentLastJump);
 		userLineSerial = userLines.length;
-		logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] <= actionCounter);
-		logEntryChangeIndex = logEntryChangeIndex.filter(id => id <= actionCounter);
+		logEntries = logEntries.filter((_, i) => logEntryChangeIndex[i] <= currentLastJump);
+		logEntryChangeIndex = logEntryChangeIndex.filter(id => id <= currentLastJump);
 		entrySerial = logEntries.length;
 		renderLog();
 	}
