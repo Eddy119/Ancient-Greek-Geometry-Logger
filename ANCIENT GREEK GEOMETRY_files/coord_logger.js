@@ -100,11 +100,20 @@ function formatChange(ch, actionId) {
 		const r = typeof ch.obj?.radius !== 'undefined' ? ch.obj.radius : '??';
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'realline') {
+		// trying to print a,b
 		const pa = changes[a]?.obj;
 		const pb = changes[b]?.obj;
 		let xa = pa?.x ?? '??', ya = pa?.y ?? '??';
 		let xb = pb?.x ?? '??', yb = pb?.y ?? '??';
-		return `Action ${actionId}: Line ${a}L${b} — ${xa},${ya} → ${xb},${yb} [#${entrySerial+1}, real ${rm}]`;
+		// return `Action ${actionId}: Line ${a}L${b} — ${xa},${ya} → ${xb},${yb} [#${entrySerial+1}, real ${rm}]`;
+		// end of trying a,b
+		const x1 = ch.obj?.point1?.x ?? '??';
+		const y1 = ch.obj?.point1?.y ?? '??';
+		const x2 = ch.obj?.point2?.x ?? '??';
+		const y2 = ch.obj?.point2?.y ?? '??';
+		const angle = typeof ch.obj?.angle !== 'undefined' ? ch.obj.angle : '??';
+		const len = typeof ch.obj?.length !== 'undefined' ? ch.obj.length : '??';
+		return `Action ${actionId}: Line ${hash} — ${x1},${y1} → ${x2},${y2} | angle=${angle} | len=${len} [#${entrySerial+1}, real ${rm}], pa${xa},${ya} → pb${xb},${yb}`;
 	} else if (ch.type === 'newlayer') {
 		return `Action ${actionId}: NewLayer [#${entrySerial+1}, real ${rm}]`;
 	}
