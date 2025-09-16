@@ -101,8 +101,8 @@ function formatChange(ch, actionId) {
 		return `Action ${actionId}: Arc ${hash} — centre ${cx},${cy} | edge ${ex},${ey} | r=${r} [#${entrySerial+1}, real ${rm}]`;
 	} else if (ch.type === 'realline') {
 		// trying to print a,b
-		const pa = changes[a]?.obj;
-		const pb = changes[b]?.obj;
+		const pa = window.points?.[a]; // works
+		const pb = window.points?.[b]; // works
 		let xa = pa?.x ?? '??', ya = pa?.y ?? '??';
 		let xb = pb?.x ?? '??', yb = pb?.y ?? '??';
 		// return `Action ${actionId}: Line ${a}L${b} — ${xa},${ya} → ${xb},${yb} [#${entrySerial+1}, real ${rm}]`;
@@ -146,7 +146,7 @@ changes.record = function(finished) {
 		logEntries = [];
 		logEntryChangeIndex = [];
 		entrySerial = 0;
-		userLines = [];
+		userLines = []; // don't reset
 		userLineSerial = 0;
 
 		for (let j = 1; j <= currentLastJump; j++) {
