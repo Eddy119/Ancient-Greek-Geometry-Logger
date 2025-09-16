@@ -177,6 +177,8 @@ if (typeof changes.replay === 'function') {
 		return res;
 	};
 }
+
+// clicking on point and pressing escape calls changes.undo
 const original_changes_undo = changes.undo;
 changes.undo = function() {
 	console.log("changes.undo called")
