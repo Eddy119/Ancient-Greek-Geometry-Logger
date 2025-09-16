@@ -110,11 +110,11 @@ function formatChange(ch) {
 // Save original record & replay
 const original_record = changes.record;
 const original_replay = changes.replay;
-const orig_makeline = geo.makeline;
+const orig_makeline = window.makeline;
 const orig_undo = geo.undo;
 
 // hook makeline to queue userLines
-geo.makeline = function(p1, p2) {
+window.makeline = function(p1, p2) {
 	const result = orig_makeline.apply(this, arguments);
 	userLinesPending.push({ p1, p2 });
 	return result;
@@ -180,14 +180,18 @@ if (typeof changes.replay === 'function') {
 
 // hook undo to also remove userLines
 geo.undo = function() {
+	const prevAction = actionCount; // snapshot before undo
 	const result = orig_undo.apply(this, arguments);
+
 	if (userLines.length > 0) {
-		const lastAction = actionCount;
-		userLines = userLines.filter(ln => ln.actionId < lastAction);
+		userLines = userLines.filter(ln => ln.actionId < prevAction);
+		userLineSerial = userLines.length;
 	}
+
 	renderLog();
 	return result;
 };
+
 
 // Reset hook
 const orig_reset = geo.resetall;
