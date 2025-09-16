@@ -1,7 +1,7 @@
-// Geometry Logger with symbolic groundwork
+// Geometry Logger with symbolic groundwork (algebraic)
 // - Logs arcs/lines/layers with dependency map
 // - Tracks symbolic points and dependencies
-// - Begins symbolic logging: line-line, arc-line, arc-arc intersections
+// - Symbolic logging: line-line, arc-line, arc-arc intersections
 
 'use strict';
 
@@ -22,8 +22,7 @@ let pointDependencies = {}; // map pointId → description of how it was created
 // symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
 	0: { x: '0', y: '0' },
-	1: { x: '1', y: '0' },
-	2: { x: '0', y: '1' }
+	1: { x: '1', y: '0' } // p0p1 = 1 (unit length)
 };
 
 // --- footer element ---
@@ -88,19 +87,13 @@ function renderDependencyMap() {
 function renderLog() {
 	if (!coordBar) return;
 	coordBar.innerHTML = '';
-
-	// render engine entries only (userLines ignored)
 	for (let i = 0; i < logEntries.length; i++) {
 		const div = document.createElement('div');
 		div.textContent = logEntries[i];
 		div.className = 'coord-entry engine';
 		coordBar.appendChild(div);
 	}
-
-	// append dependency map for debugging
-	const depDiv = renderDependencyMap();
-	coordBar.appendChild(depDiv);
-
+	coordBar.appendChild(renderDependencyMap());
 	coordBar.appendChild(footerDiv);
 	updateFooter();
 }
@@ -114,90 +107,47 @@ function clearLog() {
 	lastProcessedJump = 0;
 	dependencyMap = {};
 	pointDependencies = {};
-	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' }, 2: { x: '0', y: '1' } };
+	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' } };
 	if (coordBar) coordBar.innerHTML = '';
 }
 
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
-// intersection helpers (symbolic placeholders)
+// --- Intersections ---
 function intersectLineLine(a, b, c, d) {
-	// a,b,c,d are point *IDs*, not point objects
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-
-	// numeric (approx) coords, if available
-	const pa = window.points?.[a];
-	const pb = window.points?.[b];
-	const pc = window.points?.[c];
-	const pd = window.points?.[d];
-
-	const x1 = pa?.x ?? `p${a}x`, y1 = pa?.y ?? `p${a}y`;
-	const x2 = pb?.x ?? `p${b}x`, y2 = pb?.y ?? `p${b}y`;
-	const x3 = pc?.x ?? `p${c}x`, y3 = pc?.y ?? `p${c}y`;
-	const x4 = pd?.x ?? `p${d}x`, y4 = pd?.y ?? `p${d}y`;
-	
-	const vars = { x1, y1, x2, y2, x3, y3, x4, y4 };
-	const r = smartRoundVars(vars);
-
-	// denominator
-	const D = `(${r.x1} - ${r.x2}) * (${r.y3} - ${r.y4}) - (${r.y1} - ${r.y2}) * (${r.x3} - ${r.x4})`;
-
-	if (Math.abs(D) < 1e-9) return {
-		x: `parallel`,
-		y: `parallel`,
-		den: `parallel`,
-	}; // parallel
-
-	// return a symbolic object
-	return {
-		x: `((${r.x1}*${r.y2} - ${r.y1}*${r.x2}) * (${r.x3} - ${r.x4}) - (${r.x1} - ${r.x2}) * (${r.x3}*${r.y4} - ${r.y3}*${r.x4})) / (${D}))`,
-		y: `((${r.x1}*${r.y2} - ${r.y1}*${r.x2}) * (${r.y3} - ${r.y4}) - (${r.y1} - ${r.y2}) * (${r.x3}*${r.y4} - ${r.y3}*${r.x4})) / (${D}))`,
-		den: D
-	};
-}
-
-function smartRoundVars(vars, dp = 4) {
-    // vars: object { x1, y1... }
-    const r = {};
-    for (let k in vars) {
-        if (typeof vars[k] === 'number') {
-            // integer → no decimals; otherwise round to dp
-            r[k] = Number.isInteger(vars[k]) ? vars[k].toString() : vars[k].toFixed(dp);
-        } else {
-            r[k] = vars[k]; // symbolic or string stays as-is
-        }
-    }
-    return r;
+	return { x: `line(${a},${b})∩line(${c},${d})`, y: `±line`, den: `≠0` };
 }
 
 function intersectArcLine(a, b, c, d) {
-	// arc centre-edge a,b with line c,d
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-	const expr = { x: `(quadratic expr)`, y: `(quadratic expr)` };
-	return expr;
+	return {
+		x: `(arc(${a},${b})∩line(${c},${d}))`,
+		y: `±sqrt(expr)`
+	};
 }
 
 function intersectArcArc(a, b, c, d) {
-	// arc a,b with arc c,d
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-	const expr = { x: `(circle-circle expr)`, y: `(circle-circle expr)` };
-	return expr;
+	return {
+		x: `(arc(${a},${b})∩arc(${c},${d}))`,
+		y: `±sqrt(expr)`
+	};
 }
 
 // formatting helper
 function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
-	if (ch.type === 'line') return null; // skip raw split lines
-	const rm = realmoveCount;
+	if (ch.type === 'line') return null;
 	let a = (typeof ch.a !== 'undefined') ? ch.a : (typeof ch.obj?.a !== 'undefined' ? ch.obj.a : '?');
 	let b = (typeof ch.b !== 'undefined') ? ch.b : (typeof ch.obj?.b !== 'undefined' ? ch.obj.b : '?');
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
@@ -206,7 +156,7 @@ function formatChange(ch, actionId) {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a);
 		ensureSymbolicPoint(b);
-		return `Action ${actionId}: Arc ${hash}`;
+		return `Action ${actionId}: Arc ${hash} — center p${a}, radius |p${a}p${b}|`;
 	} else if (ch.type === 'realline') {
 		const hash2 = `${a}L${b}`;
 		const currentHash = window.location.hash || '';
@@ -214,23 +164,25 @@ function formatChange(ch, actionId) {
 		addDependency(hash2, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a);
 		ensureSymbolicPoint(b);
-		 // collect intersections with lines sharing a or b
+		let logStr = `Action ${actionId}: Line ${hash2} — |p${a}p${b}|`;
+		// intersections
 		const intersections = [];
 		for (let otherHash in dependencyMap) {
-			if (otherHash === hash2) continue; // skip self
+			if (otherHash === hash2) continue;
 			const dep = dependencyMap[otherHash];
 			if (dep.type === 'line') {
 				const [c, d] = dep.depends;
-				// only consider lines sharing a point with current line
-				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
+				if (dep.actionId <= actionId) {
 					const inter = intersectLineLine(a, b, c, d);
-					intersections.push(`${hash2} ∩ ${otherHash} = ${JSON.stringify(inter)}`);
+					intersections.push(`p? = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
 				}
 			}
+			if (dep.type === 'arc') {
+				const [c, d] = dep.depends;
+				const inter = intersectArcLine(c, d, a, b);
+				intersections.push(`p? = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+			}
 		}
-
-		// combine log string
-		let logStr = `Action ${actionId}: Line ${hash2}`;
 		if (intersections.length > 0) {
 			logStr += ` | Intersections:\n  ` + intersections.join('\n  ');
 		}
@@ -258,6 +210,8 @@ changes.record = function(finished) {
 		logEntries = [];
 		logEntryChangeIndex = [];
 		entrySerial = 0;
+		dependencyMap = {};
+		pointDependencies = {};
 
 		for (let j = 1; j <= currentLastJump; j++) {
 			const actionId = j - 1;
@@ -284,7 +238,7 @@ if (typeof changes.replay === 'function') {
 		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
-		renderLog();
+		changes.record(); // rebuild log after replay
 		return res;
 	};
 }
@@ -292,7 +246,7 @@ if (typeof changes.replay === 'function') {
 // hook undo
 changes.undo = function() {
 	const res = orig_undo.apply(this, arguments);
-	renderLog();
+	changes.record(); // rebuild log + dependencies
 	return res;
 };
 
