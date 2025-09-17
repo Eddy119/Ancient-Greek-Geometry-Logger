@@ -247,9 +247,10 @@ changes.record = function(finished) {
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
-		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
+		const res = original_replay.apply(this, arguments);
+
 		return res;
 	};
 }
