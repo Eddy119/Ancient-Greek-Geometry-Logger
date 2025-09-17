@@ -215,20 +215,23 @@ const orig_reset = geo.resetall;
 
 const orig_makeline = window.makeline;
 window.makeline = function (point1, point2, spec) {
+	const res = orig_makeline.apply(this, arguments);
 	addLog();
-	return orig_makeline.apply(this, arguments);
+	return res;
 };
 
 const orig_makearc = window.makearc;
 window.makearc = function (centre, edge, radius, spec) {
+	const res = orig_makearc.apply(this, arguments);
 	addLog();
-	return orig_makearc.apply(this, arguments);
+	return res;
 };
 
 const orig_redo = changes.redo;
 changes.redo = function () {
-	addLog();
-	return orig_redo.apply(this, arguments);
+    const res = orig_redo.apply(this, arguments); // original function runs first
+    addLog(); // runs after
+    return res; // return whatever the original function returned
 };
 
 function addLog() {
