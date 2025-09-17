@@ -11,7 +11,7 @@ const nukerBtn = document.getElementById('coordnuker');
 let logEntries = [];
 let logEntryChangeIndex = []; // stores actionId for engine entries
 let entrySerial = 0;
-let actionCount = 0; // user-facing action id (derived from jumps)
+// let actionCount = 0; // user-facing action id (derived from jumps) unused
 let realmoveCount = 0;
 let lastProcessedJump = 0;
 
@@ -102,7 +102,7 @@ function clearLog() {
 	logEntries = [];
 	logEntryChangeIndex = [];
 	entrySerial = 0;
-	actionCount = 0;
+	// actionCount = 0; unused
 	realmoveCount = 0;
 	lastProcessedJump = 0;
 	dependencyMap = {};
