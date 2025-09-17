@@ -92,7 +92,7 @@ function renderLog() {
 		div.className = 'coord-entry engine';
 		coordBar.appendChild(div);
 	}
-	coordBar.appendChild(renderDependencyMap());
+	// coordBar.appendChild(renderDependencyMap()); // obnoxious, will add later
 	coordBar.appendChild(footerDiv);
 	updateFooter();
 }
@@ -207,22 +207,45 @@ function formatChange(ch, actionId) {
 }
 
 // Save original functions
-const original_record = changes.record;
+// const original_record = changes.record;
 const original_replay = changes.replay;
 const orig_undo = changes.undo;
 const orig_reset = geo.resetall;
 
-// --- changes.record wrapper ---
-changes.record = function(finished) {
-	const result = original_record.apply(this, arguments);
+// --- changes.record wrapper --- // maybe not use this hook
+// changes.record = function(finished) {
+// 	const result = original_record.apply(this, arguments);
+	// addLog();
+// 	return result;
+// };
+
+const orig_makeline = window.makeline;
+window.makeline = function (point1, point2, spec) {
+	console.log("makeline")
 	addLog();
-	return result;
+	return orig_makeline.apply(this, arguments);
+};
+
+const orig_makearc = window.makearc;
+window.makearc = function (centre, edge, radius, spec) {
+	console.log("makearc")
+	addLog();
+	return orig_makearc.apply(this, arguments);
+};
+
+// add changes.redo hook too
+const orig_redo = changes.redo;
+changes.redo = function () {
+	console.log("redo")
+	addLog();
+	return orig_redo.apply(this, arguments);
 };
 
 function addLog() {
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
-
-	if (changes && changes.jumps && changes.jumps.length > 1) {
+	console.log("changes.jumps.length after changes.record before addLog: " + changes.jumps.length)
+	if (/*changes && changes.jumps && */changes.jumps.length > 2) {
+		console.log("print the log pls")
 		const currentLastJump = changes.jumps.length - 1;
 		logEntries = [];
 		logEntryChangeIndex = [];
@@ -247,12 +270,13 @@ function addLog() {
 	}
 }
 
-// wrap replay
+// wrap replay: this calls when loadhash or sidebar load
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
 		lastProcessedJump = 0;
 		const res = original_replay.apply(this, arguments);
+		addLog();
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
 		return res;
 	};
@@ -260,7 +284,22 @@ if (typeof changes.replay === 'function') {
 
 // hook undo
 changes.undo = function() {
+	console.log("before orig_undo")
 	const res = orig_undo.apply(this, arguments);
+	console.log("is this calling");
+	if (!lastpoint) {
+		logEntries = [];
+		logEntryChangeIndex = [];
+		entrySerial = 0;
+		dependencyMap = {};
+		pointDependencies = {};
+		if (changes.jumps.length > 2) {
+			addLog();
+			console.log("is this callign");
+		}
+		// if (changes.jumps.length > 2) { // these two lines are in geo.js orig on !lastpoint condition
+    	//changes.record();
+	}
 	return res;
 };
 
