@@ -3,32 +3,38 @@ Logs info for constructions for https://sciencevsmagic.net/geo/ by Nico Disseldo
 
 See also: https://gist.github.com/mrflip/a973b1c60f4a38fc3277ddd57ce65b28 for solutions and my rambling
 
-I know AGPL is overkill, I'll deal with it later
-More on license: this code is probably too short for any worthy copyright, and idk how it works legally, and you don't need to worry about legal either, but it'd be nice if you credited me, link the URL to this GitHub repo, and share your source code of your contributions/modifications (in fact pls help me improve this), as well my original, if you're using this. You probably don't need to include the full license (since it can be found here through the URL). Again, this is just a logger for someone else's work. A lot of the effort was figuring out how their game worked.
-
 I'll publish solutions here too but I want to add details like the authors etc
 
 I’m currently implementing a construction logger for the game, with AI assistance. Aims:
 
-* Tracks source points of lines, arcs, and layers.
+* Tracks source points of lines, arcs, and layers. Done with `changes.record()`.
 
-* Handles undo, reset, and load properly.
+* Handles undo, reset, and load properly. Using `changes.undo()` and `!lastpoint`, This is hard, WIP.
 
-* Counts moves (extensions of existing lines don’t count).
+* Counts moves (extensions of existing lines don’t count). Done with `modules.test.score()`.
 
-* Logs new layers and tries to avoid duplicate entries.
+* Logs new layers and tries to avoid duplicate entries. Think this is done.
 
-* Aims to eventually support algebraic/symbolic logging (e.g., √3/2 instead of 0.866) to preserve exact constructibility.
+* Aims to eventually support algebraic/symbolic logging (e.g., √3/2 instead of 0.866) to preserve exact constructibility. Gonna use [nerdamer-prime](https://github.com/together-science/nerdamer-prime).
 
-* Plans to map log entries back to the game’s hash tokens (1A0, 0L3, etc.) so you know which command produced each coordinate.
+* Plans to map log entries back to the game’s hash tokens (1A0, 0L3, etc.) so you know which command produced each coordinate. Done with reading `changes`.
 
 It’s tricky—sometimes multiple or missing log entries appear for a single construction—but the logger doesn't edit geo.js and could potentially be made into a Chrome extension.
 
 Extra feature: Lets you download all your unlocked progress from localStorage.
 
-I should ask the creator, Nico Disseldorp, for guidance, permission, and suggestions...
+I'm trying to ask the creator, Nico Disseldorp, for guidance, permission, and suggestions...
 
 Todo: Ah, I also need to add toggle for the logger like the sidebar... Update: done. Click HISTORY (coordheader) to toggle collapse.
+
+## About License
+
+I know AGPL is overkill, this code is probably too short for any worthy copyright, and idk how it works legally, and you don't need to worry about legal either, but it'd be nice if:
+* you credited me, 
+* link the URL to this GitHub repo, 
+* and share your source code of your contributions/modifications (in fact pls help me improve this), 
+** as well my original, if you're using this.
+You probably don't need to include the full license (since it can be found here through the URL). Again, this is just a logger for someone else's work. A lot of the effort was figuring out how their game worked.
 
 ## How to install for now:
 
@@ -52,10 +58,11 @@ In body betwen sidebar and maincanvas:
 ```
 Between existing scripts, put it before init.js:
 ```
+	<!-- will add nerdamer scripts here later -->
 	<script src="./ANCIENT GREEK GEOMETRY_files/coord_logger.js"></script>
 	<script src="./ANCIENT GREEK GEOMETRY_files/local_storage_download.js"></script>
 	<script src="./ANCIENT GREEK GEOMETRY_files/coordbartoggle.js"></script>
-  <script src="./ANCIENT GREEK GEOMETRY_files/init.js.download"></script>
+	<script src="./ANCIENT GREEK GEOMETRY_files/init.js.download"></script>
 ```
 Add this to CSS
 ```
