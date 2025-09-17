@@ -182,7 +182,7 @@ function formatChange(ch, actionId) {
 			const dep = dependencyMap[otherHash];
 			if (dep.type === 'line') {
 				const [c, d] = dep.depends;
-				if (dep.actionId <= actionId) {
+				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
 					const pid = `${a}${b}${c}${d}`;
 					const inter = intersectLineLine(pid, a, b, c, d);
 					intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
@@ -190,9 +190,11 @@ function formatChange(ch, actionId) {
 			}
 			if (dep.type === 'arc') {
 				const [c, d] = dep.depends;
-				const pid = `${a}${b}${c}${d}`;
-				const inter = intersectArcLine(pid, c, d, a, b);
-				intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
+					const pid = `${a}${b}${c}${d}`;
+					const inter = intersectArcLine(pid, c, d, a, b);
+					intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+				}
 			}
 		}
 		if (intersections.length > 0) {
