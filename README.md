@@ -5,6 +5,8 @@ See also: https://gist.github.com/mrflip/a973b1c60f4a38fc3277ddd57ce65b28 for so
 
 I'll publish solutions here too but I want to add details like the authors etc
 
+If you just want to print numerical coords and lengths calculated by the game there's a [release](https://github.com/Eddy119/Ancient-Greek-Geometry-Logger/releases/tag/v1_Coordinates_only), I'm working on symbolic coords and lengths.
+
 I’m currently implementing a construction logger for the game, with AI assistance. Aims:
 
 * Tracks source points of lines, arcs, and layers. Done with `changes.record()`.
