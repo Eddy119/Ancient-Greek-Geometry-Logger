@@ -32,8 +32,7 @@ Todo: Ah, I also need to add toggle for the logger like the sidebar... Update: d
 I know AGPL is overkill, this code is probably too short for any worthy copyright, and idk how it works legally, and you don't need to worry about legal either, but it'd be nice if:
 * you credited me, 
 * link the URL to this GitHub repo, 
-* and share your source code of your contributions/modifications (in fact pls help me improve this), 
-** as well my original, if you're using this.
+* and share your source code of your contributions/modifications (in fact pls help me improve this).
 You probably don't need to include the full license (since it can be found here through the URL). Again, this is just a logger for someone else's work. A lot of the effort was figuring out how their game worked.
 
 ## How to install for now:
