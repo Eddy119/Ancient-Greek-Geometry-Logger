@@ -11,7 +11,6 @@ const nukerBtn = document.getElementById('coordnuker');
 let logEntries = [];
 let logEntryChangeIndex = []; // stores actionId for engine entries
 let entrySerial = 0;
-// let actionCount = 0; // user-facing action id (derived from jumps) unused
 let realmoveCount = 0;
 let lastProcessedJump = 0;
 
@@ -102,7 +101,6 @@ function clearLog() {
 	logEntries = [];
 	logEntryChangeIndex = [];
 	entrySerial = 0;
-	// actionCount = 0; unused
 	realmoveCount = 0;
 	lastProcessedJump = 0;
 	dependencyMap = {};
@@ -114,34 +112,46 @@ function clearLog() {
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 // --- Intersections ---
-function intersectLineLine(a, b, c, d) {
+function intersectLineLine(pid, a, b, c, d) {
+	// ensure input points exist in dictionary
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-	return { x: `line(${a},${b})∩line(${c},${d})`, y: `±line`, den: `≠0` };
+
+	// symbolic expression in terms of existing symbolic coords
+	const expr = {
+		x: `(det(p${a},p${b},p${c},p${d}))x`,
+		y: `(det(p${a},p${b},p${c},p${d}))y`
+	};
+	addPointDependency(pid, `Intersection of line(${a},${b}) and line(${c},${d})`, expr);
+	return expr;
 }
 
-function intersectArcLine(a, b, c, d) {
+function intersectArcLine(pid, a, b, c, d) {
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-	return {
-		x: `(arc(${a},${b})∩line(${c},${d}))`,
-		y: `±sqrt(expr)`
+	const expr = {
+		x: `(arc(${a},${b})∩line(${c},${d}))x`,
+		y: `(arc(${a},${b})∩line(${c},${d}))y`
 	};
+	addPointDependency(pid, `Intersection of arc(${a},${b}) and line(${c},${d})`, expr);
+	return expr;
 }
 
-function intersectArcArc(a, b, c, d) {
+function intersectArcArc(pid, a, b, c, d) {
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-	return {
-		x: `(arc(${a},${b})∩arc(${c},${d}))`,
-		y: `±sqrt(expr)`
+	const expr = {
+		x: `(arc(${a},${b})∩arc(${c},${d}))x`,
+		y: `(arc(${a},${b})∩arc(${c},${d}))y`
 	};
+	addPointDependency(pid, `Intersection of arc(${a},${b}) and arc(${c},${d})`, expr);
+	return expr;
 }
 
 // formatting helper
@@ -173,14 +183,16 @@ function formatChange(ch, actionId) {
 			if (dep.type === 'line') {
 				const [c, d] = dep.depends;
 				if (dep.actionId <= actionId) {
-					const inter = intersectLineLine(a, b, c, d);
-					intersections.push(`p? = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+					const pid = `${a}${b}${c}${d}`;
+					const inter = intersectLineLine(pid, a, b, c, d);
+					intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
 				}
 			}
 			if (dep.type === 'arc') {
 				const [c, d] = dep.depends;
-				const inter = intersectArcLine(c, d, a, b);
-				intersections.push(`p? = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+				const pid = `${a}${b}${c}${d}`;
+				const inter = intersectArcLine(pid, c, d, a, b);
+				intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
 			}
 		}
 		if (intersections.length > 0) {
@@ -238,7 +250,6 @@ if (typeof changes.replay === 'function') {
 		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
-		// changes.record(); // rebuild log after replay changes.replay() in geo.js already calls changes.replay()
 		return res;
 	};
 }
@@ -246,7 +257,6 @@ if (typeof changes.replay === 'function') {
 // hook undo
 changes.undo = function() {
 	const res = orig_undo.apply(this, arguments);
-	// changes.record(); // rebuild log + dependencies changes.undo also calls this in geo.js
 	return res;
 };
 
