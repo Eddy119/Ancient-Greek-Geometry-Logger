@@ -236,7 +236,7 @@ changes.redo = function () {
 
 function addLog() {
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
-	if (changes.jumps.length > 2) {
+	if (changes.jumps.length >= 2) {
 		const currentLastJump = changes.jumps.length - 1;
 		logEntries = [];
 		logEntryChangeIndex = [];
@@ -282,7 +282,7 @@ changes.undo = function() {
 		entrySerial = 0;
 		dependencyMap = {};
 		pointDependencies = {};
-		if (changes.jumps.length > 2) {
+		if (changes.jumps.length >= 2) {
 			addLog();
 		}
 	}
