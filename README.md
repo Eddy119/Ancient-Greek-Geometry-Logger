@@ -1,6 +1,6 @@
 # Ancient Greek Geometry Logger
 
-Issue #18: you need to click on your unlocked shapes twice on the bottom right sidebar for log to load
+[Issue #18](https://github.com/Eddy119/Ancient-Greek-Geometry-Logger/issues/18): you need to click on your unlocked shapes twice on the bottom right sidebar for log to load
 
 Logs info for constructions for https://sciencevsmagic.net/geo/ by Nico Disseldorp
 
