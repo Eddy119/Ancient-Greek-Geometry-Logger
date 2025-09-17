@@ -27,7 +27,7 @@ Extra feature: Lets you download all your unlocked progress from localStorage.
 
 I should ask the creator, Nico Disseldorp, for guidance, permission, and suggestions...
 
-Todo: Ah, I also need to add toggle for the logger like the sidebar... Update: done.
+Todo: Ah, I also need to add toggle for the logger like the sidebar... Update: done. Click HISTORY (coordheader) to toggle collapse.
 
 ## How to install for now:
 
