@@ -118,7 +118,7 @@ function intersectLineLine(pid, a, b, c, d) {
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
 	ensureSymbolicPoint(d);
-
+	
 	// symbolic expression in terms of existing symbolic coords
 	const expr = {
 		x: `(det(p${a},p${b},p${c},p${d}))x`,
@@ -177,24 +177,23 @@ function formatChange(ch, actionId) {
 		let logStr = `Action ${actionId}: Line ${hash2} — |p${a}p${b}|`;
 		// intersections
 		const intersections = [];
-		for (let otherHash in dependencyMap) {
-			if (otherHash === hash2) continue;
-			const dep = dependencyMap[otherHash];
-			if (dep.type === 'line') {
-				const [c, d] = dep.depends;
-				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
-					const pid = `${a}${b}${c}${d}`;
-					const inter = intersectLineLine(pid, a, b, c, d);
-					intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
+		for (let pid in window.points) {
+			const pt = window.points[pid];
+			if (!pt || !pt.parents) continue;
+			// check if this point comes from intersecting this line with something
+			if (pt.parents.includes(hash2)) {
+				let expr;
+				if (pt.parents.some(p => p.includes('L')) && pt.parents.length === 2) {
+					// line-line
+					const [c, d] = dependencyMap[pt.parents.find(p => p !== hash2)].depends;
+					expr = intersectLineLine(pid, a, b, c, d);
+				} else if (pt.parents.some(p => p.includes('A'))) {
+					// arc-line
+					const arcHash = pt.parents.find(p => p.includes('A'));
+					const [c, d] = dependencyMap[arcHash].depends;
+					expr = intersectArcLine(pid, c, d, a, b);
 				}
-			}
-			if (dep.type === 'arc') {
-				const [c, d] = dep.depends;
-				if ((c === a || c === b || d === a || d === b) && dep.actionId <= actionId) {
-					const pid = `${a}${b}${c}${d}`;
-					const inter = intersectArcLine(pid, c, d, a, b);
-					intersections.push(`p${pid} = ${hash2} ∩ ${otherHash} = ${inter.x},${inter.y}`);
-				}
+				if (expr) intersections.push(`p${pid} = ${hash2} ∩ ${pt.parents.find(p => p!==hash2)} = ${expr.x},${expr.y}`);
 			}
 		}
 		if (intersections.length > 0) {
@@ -214,40 +213,27 @@ const original_replay = changes.replay;
 const orig_undo = changes.undo;
 const orig_reset = geo.resetall;
 
-// --- changes.record wrapper --- // maybe not use this hook
-// changes.record = function(finished) {
-// 	const result = original_record.apply(this, arguments);
-	// addLog();
-// 	return result;
-// };
-
 const orig_makeline = window.makeline;
 window.makeline = function (point1, point2, spec) {
-	console.log("makeline")
 	addLog();
 	return orig_makeline.apply(this, arguments);
 };
 
 const orig_makearc = window.makearc;
 window.makearc = function (centre, edge, radius, spec) {
-	console.log("makearc")
 	addLog();
 	return orig_makearc.apply(this, arguments);
 };
 
-// add changes.redo hook too
 const orig_redo = changes.redo;
 changes.redo = function () {
-	console.log("redo")
 	addLog();
 	return orig_redo.apply(this, arguments);
 };
 
 function addLog() {
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
-	console.log("changes.jumps.length after changes.record before addLog: " + changes.jumps.length)
-	if (/*changes && changes.jumps && */changes.jumps.length > 2) {
-		console.log("print the log pls")
+	if (changes.jumps.length > 2) {
 		const currentLastJump = changes.jumps.length - 1;
 		logEntries = [];
 		logEntryChangeIndex = [];
@@ -286,9 +272,7 @@ if (typeof changes.replay === 'function') {
 
 // hook undo
 changes.undo = function() {
-	console.log("before orig_undo")
 	const res = orig_undo.apply(this, arguments);
-	console.log("is this calling");
 	if (!lastpoint) {
 		logEntries = [];
 		logEntryChangeIndex = [];
@@ -297,10 +281,7 @@ changes.undo = function() {
 		pointDependencies = {};
 		if (changes.jumps.length > 2) {
 			addLog();
-			console.log("is this callign");
 		}
-		// if (changes.jumps.length > 2) { // these two lines are in geo.js orig on !lastpoint condition
-    	//changes.record();
 	}
 	return res;
 };
