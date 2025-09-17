@@ -246,7 +246,7 @@ if (typeof changes.replay === 'function') {
 // hook undo
 changes.undo = function() {
 	const res = orig_undo.apply(this, arguments);
-	changes.record(); // rebuild log + dependencies
+	// changes.record(); // rebuild log + dependencies changes.undo also calls this in geo.js
 	return res;
 };
 
