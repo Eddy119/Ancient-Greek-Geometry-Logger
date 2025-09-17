@@ -215,6 +215,11 @@ const orig_reset = geo.resetall;
 // --- changes.record wrapper ---
 changes.record = function(finished) {
 	const result = original_record.apply(this, arguments);
+	addLog();
+	return result;
+};
+
+function addLog() {
 	realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
 
 	if (changes && changes.jumps && changes.jumps.length > 1) {
@@ -240,15 +245,14 @@ changes.record = function(finished) {
 		lastProcessedJump = currentLastJump;
 		renderLog();
 	}
-	return result;
-};
+}
 
 // wrap replay
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
-		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
+		const res = original_replay.apply(this, arguments);
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
 		return res;
 	};
