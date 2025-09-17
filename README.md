@@ -1,4 +1,7 @@
 # Ancient Greek Geometry Logger
+
+Issue #18: you need to click on your unlocked shapes twice on the bottom right sidebar for log to load
+
 Logs info for constructions for https://sciencevsmagic.net/geo/ by Nico Disseldorp
 
 See also: https://gist.github.com/mrflip/a973b1c60f4a38fc3277ddd57ce65b28 for solutions and my rambling
