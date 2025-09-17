@@ -238,7 +238,7 @@ if (typeof changes.replay === 'function') {
 		const res = original_replay.apply(this, arguments);
 		lastProcessedJump = 0;
 		realmoveCount = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : 0;
-		changes.record(); // rebuild log after replay
+		// changes.record(); // rebuild log after replay changes.replay() in geo.js already calls changes.replay()
 		return res;
 	};
 }
