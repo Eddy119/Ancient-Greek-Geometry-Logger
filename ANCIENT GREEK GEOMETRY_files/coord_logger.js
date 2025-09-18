@@ -151,6 +151,12 @@ function formatChange(ch, actionId) {
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 		return `Action ${actionId}: Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 	} else if (ch.type === 'realline') {
+
+		const currentHash = window.location.hash || '';
+		if (!currentHash.includes(hash)) {
+			return null; // hide phantom line
+		}
+
 		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 		let logStr = `Action ${actionId}: Line ${hash}\n  endpoints: p${a}, p${b}`;
