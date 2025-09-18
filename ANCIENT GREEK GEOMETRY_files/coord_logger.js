@@ -92,6 +92,7 @@ function renderLog() {
 		div.className = 'coord-entry engine';
 		coordBar.appendChild(div);
 	}
+	// coordBar.appendChild(renderDependencyMap()); // obnoxious, will add later
 	coordBar.appendChild(footerDiv);
 	updateFooter();
 }
@@ -110,8 +111,10 @@ function clearLog() {
 
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
-// --- Intersections ---
+// --- Intersections ---   these 3 need symbolic formulae to print and input to nerdamer
+// also think about when 2 points are created geo.js calculates order deterministically, can copy that logic
 function intersectLineLine(pid, a, b, c, d) {
+	// ensure input points exist in dictionary
 	ensureSymbolicPoint(a);
 	ensureSymbolicPoint(b);
 	ensureSymbolicPoint(c);
@@ -169,6 +172,7 @@ function formatChange(ch, actionId) {
 			if (!pt) continue;
 			const pointChanges = changes.filter(c => c.type === 'point' && c.x === pt.x && c.y === pt.y);
 			if (pointChanges.length) {
+				// I don't think pt.parents exists
 				const parents = (pt.parents || []);
 				if (parents.includes(hash2)) {
 					let expr;
@@ -199,6 +203,7 @@ function formatChange(ch, actionId) {
 }
 
 // Save original functions
+// const original_record = changes.record;
 const original_replay = changes.replay;
 const orig_undo = changes.undo;
 const orig_reset = geo.resetall;
@@ -219,7 +224,7 @@ window.makearc = function (centre, edge, radius, spec) {
 
 const orig_redo = changes.redo;
 changes.redo = function () {
-    const res = orig_redo.apply(this, arguments);
+    const res = orig_redo.apply(this, arguments); // original function runs first
     addLog();
     return res;
 };
@@ -251,6 +256,7 @@ function addLog() {
 	}
 }
 
+// wrap replay: this calls when loadhash or sidebar load
 if (typeof changes.replay === 'function') {
 	changes.replay = function() {
 		clearLog();
@@ -298,6 +304,7 @@ function dist(p, q) {
 	return Math.hypot(p.x - q.x, p.y - q.y);
 }
 
+// engine-created points are probably identical to window.points so tolerance is prob unneccessary
 function pointOnLine(pid, a, b, tol = 1e-6) {
 	const P = pointCoords(pid);
 	const A = pointCoords(a);
@@ -361,6 +368,7 @@ function describeIntersectionFromObjects(pid, objects) {
 			}
 		}
 	}
+	// welp it could not determine any parents
 	console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
 	return null;
 }
