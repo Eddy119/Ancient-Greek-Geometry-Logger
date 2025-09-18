@@ -17,7 +17,7 @@ let lastProcessedJump = 0;
 // dependency tracking
 let dependencyMap = {};
 let pointDependencies = {}; // map pointId → description of how it was created
-let jumpPointMap = {}; // jump index → array of point IDs created
+// let jumpPointMap = {}; // jump index → array of point IDs created // unused, maybe use later
 
 // symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
@@ -56,10 +56,10 @@ function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
 	}
-	 // record under current jump
-    const jIndex = changes.jumps.length - 1;
-    if (!jumpPointMap[jIndex]) jumpPointMap[jIndex] = [];
-    jumpPointMap[jIndex].push(pid);
+	//  // record under current jump
+    // const jIndex = changes.jumps.length - 1;
+    // if (!jumpPointMap[jIndex]) jumpPointMap[jIndex] = [];
+    // jumpPointMap[jIndex].push(pid);
 
     if (window.points && window.points[pid]) {
         window.points[pid].symbolic = `p${pid}`;
@@ -117,6 +117,7 @@ function clearLog() {
 	lastProcessedJump = 0;
 	dependencyMap = {};
 	pointDependencies = {};
+	console.log("cleared point dependencies from clearLog");
 	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' } };
 	if (coordBar) coordBar.innerHTML = '';
 }
@@ -323,17 +324,28 @@ changes.redo = function() { const r = orig_redo.apply(this, arguments); addLog()
 
 const orig_undo = changes.undo;
 changes.undo = function() {
-	const prevJumps = changes.jumps.length;
+	const b4UndoPointsLength = window.points.length;
+	console.log("b4UndoPointsLength: ", b4UndoPointsLength);
 	const r = orig_undo.apply(this, arguments);
-	const newJumps = changes.jumps.length;
+	// const afterUndoPointsLength = window.points.length;
 
-	if (prevJumps > newJumps) {
-        const undoneJump = prevJumps - 1; // the jump index we just lost
-        const doomed = jumpPointMap[undoneJump] || [];
-        doomed.forEach(pid => delete pointDependencies[pid]);
-        delete jumpPointMap[undoneJump];
-        console.log(`Undo removed points from jump ${undoneJump}:`, doomed);
-    	}
+	console.log("afterUndoPointsLength: ", window.points.length);
+
+	// just check the ones within b4UndoPointsLength - 1 and afterUndoPointsLength - 1 instead of every entry , also we're not using jumpPointMap
+	if (b4UndoPointsLength < window.points.length) {
+		console.log("b4UndoPointsLength < window.points.length");
+ 		for (let j = b4UndoPointsLength - 1; j >= window.points.length - 1; j--) {
+			console.log("deletion starting for pointDependencies[j], j = ", j);
+			const prevPoint = window.points[j];
+			if (prevPoint) {
+				delete pointDependencies[j];
+			} else {
+				console.log("window.points " + j + " is undefined");
+			}
+			// delete jumpPointMap[j]; // unused
+			console.log(`Undo removed points from jump ${j}:`, doomed);
+		}
+    }
 
 	logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
 	dependencyMap = {}; // pointDependencies = {};
