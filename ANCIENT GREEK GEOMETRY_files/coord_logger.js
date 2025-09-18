@@ -216,7 +216,7 @@ function pointOnArc(pid, centerId, edgeId, tol = 1e-6) {
 	const P = pointCoords(pid), C = pointCoords(centerId), E = pointCoords(edgeId);
 	if (!P || !C || !E) return false;
 	const r = dist(C, E), d = dist(C, P);
-	return Math.abs(d - r) <= Math.max(1e-6, Math.abs(r) * 1e-6);
+	return Math.abs(d - r) <= Math.max(tol, Math.abs(r) * tol);
 }
 
 function describeIntersectionFromObjects(pid, objects) {
