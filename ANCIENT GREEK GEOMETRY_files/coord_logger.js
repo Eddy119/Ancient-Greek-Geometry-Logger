@@ -17,7 +17,9 @@ let lastProcessedJump = 0;
 // dependency tracking
 let dependencyMap = {};
 let pointDependencies = {}; // map pointId → description of how it was created
-// let jumpPointMap = {}; // jump index → array of point IDs created // unused, maybe use later
+
+// pending queue for new points (filled by makeline/makearc, flushed in changes.record)
+let pendingPids = [];
 
 // symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
@@ -53,7 +55,6 @@ function addDependency(hash, info) {
 function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
 	pointDependencies[pid] = { desc, expr, change: ch, point: ptObj };
-	// record which jump created this point for safe undo
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
 	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
@@ -62,15 +63,6 @@ function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
 		window.points[pid].symbolic = `p${pid}`;
 	}
 }
-	//  // record under current jump
-    // const jIndex = changes.jumps.length - 1;
-    // if (!jumpPointMap[jIndex]) jumpPointMap[jIndex] = [];
-    // jumpPointMap[jIndex].push(pid);
-
-//     if (window.points && window.points[pid]) {
-//         window.points[pid].symbolic = `p${pid}`;
-//     }
-// }
 
 function renderDependencyMap() {
 	const div = document.createElement('div');
@@ -123,6 +115,7 @@ function clearLog() {
 	lastProcessedJump = 0;
 	dependencyMap = {};
 	pointDependencies = {};
+	pendingPids = [];
 	console.log("cleared point dependencies from clearLog");
 	symbolicPoints = { 0: { x: '0', y: '0' }, 1: { x: '1', y: '0' } };
 	if (coordBar) coordBar.innerHTML = '';
@@ -168,16 +161,13 @@ function formatChange(ch, actionId) {
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 		return `Action ${actionId}: Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 	} else if (ch.type === 'realline') {
-
 		const currentHash = window.location.hash || '';
 		if (!currentHash.includes(hash)) {
 			return null; // hide phantom line
 		}
-
 		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 		let logStr = `Action ${actionId}: Line ${hash}\n  endpoints: p${a}, p${b}`;
-		// add intersections from pointDependencies
 		const intersections = [];
 		for (let pid of Object.keys(pointDependencies)) {
 			const info = pointDependencies[pid];
@@ -259,31 +249,7 @@ window.makeline = function(p1, p2, spec) {
 	const res = orig_makeline.apply(this, arguments);
 	const afterSet = snapshotPointIds();
 	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
-
-	// gather *all* objects so far (up to current changes)
-	let objects = [];
-	for (let k = 0; k < changes.length; k++) {
-		const ch = changes[k];
-		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-	}
-
-	console.debug('Makeline newPids:', newPids, 'objects.len=', objects.length);
-	for (let pid of newPids) {
-		console.debug(`Makeline: checking p${pid} against`, objects);
-		const resDesc = describeIntersectionFromObjects(pid, objects);
-		if (!resDesc) {
-			// fallback: try pairs where one object is the newly created line (if identifiable)
-			const lastLineHash = `${p1}L${p2}`;
-			for (let obj of objects) {
-				if (obj === lastLineHash) continue;
-				const tryObjs = [lastLineHash, obj];
-				console.debug(`Makeline fallback: trying p${pid} against`, tryObjs);
-				describeIntersectionFromObjects(pid, tryObjs);
-			}
-		}
-	}
-	addLog();
+	if (newPids.length) pendingPids.push(...newPids);
 	return res;
 };
 
@@ -293,66 +259,50 @@ window.makearc = function(c, e, r, spec) {
 	const res = orig_makearc.apply(this, arguments);
 	const afterSet = snapshotPointIds();
 	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
+	if (newPids.length) pendingPids.push(...newPids);
+	return res;
+};
 
-	let objects = [];
-	for (let k = 0; k < changes.length; k++) {
-		const ch = changes[k];
-		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-	}
-
-	console.debug('Makearc newPids:', newPids, 'objects.len=', objects.length);
-	for (let pid of newPids) {
-		console.debug(`Makearc: checking p${pid} against`, objects);
-		describeIntersectionFromObjects(pid, objects);
+const orig_record = changes.record;
+changes.record = function(finished) {
+	const r = orig_record.apply(this, arguments);
+	if (pendingPids.length) {
+		// gather objects up to now
+		let objects = [];
+		for (let k = 0; k < changes.length; k++) {
+			const ch = changes[k];
+			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
+			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
+		}
+		pendingPids.forEach(pid => {
+			console.debug(`Record: resolving p${pid} against`, objects);
+			describeIntersectionFromObjects(pid, objects);
+		});
+		pendingPids = [];
 	}
 	addLog();
-	return res;
+	return r;
 };
 
 const orig_replay = changes.replay;
 changes.replay = function() {
 	clearLog();
 	lastProcessedJump = 0;
-	// snapshot before
-	const beforeAll = snapshotPointIds();
 	const res = orig_replay.apply(this, arguments);
-	// snapshot after
-	const afterAll = snapshotPointIds();
-
-	// map coords -> pid for newly created points only
-	const newPidsAll = [...afterAll].filter(x => !beforeAll.has(x)).map(Number);
-	const coordToPid = {};
-	for (let pid of newPidsAll) {
-		const c = pointCoords(pid);
-		if (c) coordToPid[`${c.x.toFixed(6)},${c.y.toFixed(6)}`] = pid;
-	}
-
-	// process each jump: collect objects up to end-of-jump and handle only point changes in that jump
-	for (let j = 1; j < changes.jumps.length; j++) {
-		const start = changes.jumps[j - 1] || 0;
-		const end = changes.jumps[j];
+	// flush any pending (from replay)
+	if (pendingPids.length) {
 		let objects = [];
-		for (let k = 0; k < end; k++) {
+		for (let k = 0; k < changes.length; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 		}
-		for (let k = start; k < end; k++) {
-			const ch = changes[k];
-			if (ch?.type === 'point') {
-				const key = `${Number(ch.a).toFixed(6)},${Number(ch.b).toFixed(6)}`;
-				const pid = coordToPid[key];
-				if (pid) {
-					console.debug(`Replay: checking p${pid} against`, objects);
-					describeIntersectionFromObjects(Number(pid), objects);
-				} else {
-					console.debug('Replay: point not in newPidsAll, skipping', ch.a, ch.b);
-				}
-			}
-		}
+		pendingPids.forEach(pid => {
+			console.debug(`Replay: resolving p${pid} against`, objects);
+			describeIntersectionFromObjects(pid, objects);
+		});
+		pendingPids = [];
 	}
-
 	addLog();
 	realmoveCount = modules?.test?.score?.() || 0;
 	return res;
@@ -363,19 +313,16 @@ changes.redo = function() {
 	const beforeIds = new Set(Object.keys(window.points));
 	const r = orig_redo.apply(this, arguments);
 	const afterIds = new Set(Object.keys(window.points));
-
-	// Find new PIDs created during redo
 	const newPids = [...afterIds].filter(x => !beforeIds.has(x)).map(Number);
-
-	if (newPids.length) {
-		// gather objects up to now
+	if (newPids.length) pendingPids.push(...newPids);
+	if (pendingPids.length) {
 		let objects = [];
 		for (let k = 0; k < changes.length; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 		}
-		newPids.forEach(pid => {
+		pendingPids.forEach(pid => {
 			console.debug(`Redo: checking p${pid} against`, objects);
 			describeIntersectionFromObjects(Number(pid), objects);
 		});
