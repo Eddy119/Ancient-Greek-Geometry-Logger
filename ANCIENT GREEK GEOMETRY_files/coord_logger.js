@@ -281,20 +281,25 @@ changes.replay = function() {
 	clearLog();
 	lastProcessedJump = 0;
 	const res = orig_replay.apply(this, arguments);
+
 	// process all jumps
 	for (let j = 1; j < changes.jumps.length; j++) {
-		const start = changes.jumps[j - 1], end = changes.jumps[j];
-		let objects = [], pointChanges = [];
-		for (let k = start; k < end; k++) {
+		// instead of just this jump, collect all previous objects
+		let objects = [];
+		let pointChanges = [];
+
+		for (let k = 0; k < changes.jumps[j]; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 			if (ch?.type === 'point') pointChanges.push(ch);
 		}
+
 		for (let pid in window.points) {
 			const coords = pointCoords(pid);
 			if (!coords) continue;
 			if (pointChanges.some(pc => Math.abs(pc.a - coords.x) < 1e-6 && Math.abs(pc.b - coords.y) < 1e-6)) {
+				console.debug(`Replay: checking p${pid} against`, objects);
 				describeIntersectionFromObjects(Number(pid), objects);
 			}
 		}
@@ -311,7 +316,7 @@ const orig_undo = changes.undo;
 changes.undo = function() {
 	const r = orig_undo.apply(this, arguments);
 	logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
-	dependencyMap = {}; pointDependencies = {};
+	dependencyMap = {}; // pointDependencies = {};
 	if (changes.jumps.length >= 2) addLog();
 	return r;
 };
@@ -324,7 +329,7 @@ function addLog() {
 	if (changes.jumps.length >= 2) {
 		const currentLastJump = changes.jumps.length - 1;
 		logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
-		dependencyMap = {}; pointDependencies = {};
+		dependencyMap = {}; // pointDependencies = {};
 		for (let j = 1; j <= currentLastJump; j++) {
 			const actionId = j - 1;
 			for (let k = changes.jumps[j - 1]; k < changes.jumps[j]; k++) {
