@@ -368,6 +368,7 @@ function describeIntersectionFromObjects(pid, objects) {
 			}
 		}
 	}
+	// welp it could not determine any parents
 	console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
 	return null;
 }
