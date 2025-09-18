@@ -18,8 +18,10 @@ let lastProcessedJump = 0;
 let dependencyMap = {};
 let pointDependencies = {}; // map pointId → description of how it was created
 
-// pending queue for new points (filled by makeline/makearc, flushed in changes.record)
+// legacy pending queue for new points (filled by makeline/makearc, flushed in changes.replay and changes.record)
 let pendingPids = [];
+// pending queue for new points (filled by makeline/makearc, flushed in changes.record)
+let pendingObjects = []; // each entry: { hash: 'aLb'|'aAb', beforeIds: Set<string> }
 
 // symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
@@ -243,45 +245,107 @@ function describeIntersectionFromObjects(pid, objects) {
 }
 
 // --- hooks ---
+// ---- makeline / makearc: register pending object with a before snapshot ----
 const orig_makeline = window.makeline;
 window.makeline = function(p1, p2, spec) {
-	const beforeSet = snapshotPointIds();
-	const res = orig_makeline.apply(this, arguments);
-	const afterSet = snapshotPointIds();
-	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
-	if (newPids.length) pendingPids.push(...newPids);
-	return res;
+    // snapshot before invoking engine
+    const beforeSet = snapshotPointIds();
+    const res = orig_makeline.apply(this, arguments);
+    // register pending object — the engine will add points later in changes.record
+    const hash = `${p1}L${p2}`;
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
+    return res;
 };
 
 const orig_makearc = window.makearc;
 window.makearc = function(c, e, r, spec) {
-	const beforeSet = snapshotPointIds();
-	const res = orig_makearc.apply(this, arguments);
-	const afterSet = snapshotPointIds();
-	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
-	if (newPids.length) pendingPids.push(...newPids);
-	return res;
+    const beforeSet = snapshotPointIds();
+    const res = orig_makearc.apply(this, arguments);
+    const hash = `${c}A${e}`;
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
+    return res;
 };
 
+// ---- helper: build full objects list (all arcs/reallines). ensure the pendingObjectHash is included up front ----
+function collectAllObjectsWith(hashToPrepend) {
+    const objects = [];
+    for (let k = 0; k < changes.length; k++) {
+        const ch = changes[k];
+        if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
+        if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
+    }
+    // put the newly-created object first to help pair matching
+    if (hashToPrepend && !objects.includes(hashToPrepend)) objects.unshift(hashToPrepend);
+    return objects;
+}
+
+// tolerant coordinate lookup (used as fallback in replay)
+function findPidByCoordsNearby(x, y, candidates, tol = 1e-5) {
+    for (let pid of candidates) {
+        const c = pointCoords(pid);
+        if (!c) continue;
+        if (Math.abs(c.x - x) <= tol && Math.abs(c.y - y) <= tol) return Number(pid);
+    }
+    return null;
+}
+
+// ---- changes.record flush: compute afterSet, resolve pendingObjects by diffing against their beforeIds ----
 const orig_record = changes.record;
 changes.record = function(finished) {
-	const r = orig_record.apply(this, arguments);
-	if (pendingPids.length) {
-		// gather objects up to now
-		let objects = [];
-		for (let k = 0; k < changes.length; k++) {
-			const ch = changes[k];
-			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-		}
-		pendingPids.forEach(pid => {
-			console.debug(`Record: resolving p${pid} against`, objects);
-			describeIntersectionFromObjects(pid, objects);
-		});
-		pendingPids = [];
-	}
-	addLog();
-	return r;
+    const r = orig_record.apply(this, arguments);
+
+    if (pendingObjects.length) {
+        // snapshot after engine finalized points
+        const afterAll = snapshotPointIds();
+
+        // process each pending object (FIFO)
+        for (const pend of pendingObjects) {
+            try {
+                // compute new pids for this pending object
+                const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
+
+                // If none found (rare), we still attempt coordinate-based matching across all points added since the earliest before snapshot
+                if (newPids.length === 0) {
+                    // fallback: try to find any points added since smallest before snapshot among pendingObjects
+                    // build a union of all beforeIds to get a global baseline
+                    const unionBefore = new Set();
+                    for (let p of pendingObjects) {
+                        for (let id of p.beforeIds) unionBefore.add(id);
+                    }
+                    const candidates = [...afterAll].filter(x => !unionBefore.has(x));
+                    // we won't try to auto-match here, skip — usually previous logic suffices
+                }
+
+                // build objects list including the newly-created object hash
+                const objects = collectAllObjectsWith(pend.hash);
+
+                // call describeIntersectionFromObjects for each newly created pid
+                for (const pid of newPids) {
+                    console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects`);
+                    describeIntersectionFromObjects(Number(pid), objects);
+                }
+            } catch (err) {
+                console.error('Error resolving pending object', pend, err);
+            }
+        }
+
+        // clear pendingObjects after processing
+        pendingObjects = [];
+    }
+
+    // keep existing pendingPids compatibility (if you still use it elsewhere)
+    if (Array.isArray(pendingPids) && pendingPids.length) {
+        // resolve any plain pendingPids (older code paths) using full objects list
+        const objects = collectAllObjectsWith();
+        for (const pid of pendingPids) {
+            describeIntersectionFromObjects(Number(pid), objects);
+        }
+        pendingPids = [];
+    }
+
+    // rebuild log now that dependencies added
+    addLog();
+    return r;
 };
 
 const orig_replay = changes.replay;
@@ -308,28 +372,20 @@ changes.replay = function() {
 	return res;
 };
 
+// ---- redo: capture before/after and register pendingObject (so record will resolve it) ----
 const orig_redo = changes.redo;
 changes.redo = function() {
-	const beforeIds = new Set(Object.keys(window.points));
-	const r = orig_redo.apply(this, arguments);
-	const afterIds = new Set(Object.keys(window.points));
-	const newPids = [...afterIds].filter(x => !beforeIds.has(x)).map(Number);
-	if (newPids.length) pendingPids.push(...newPids);
-	if (pendingPids.length) {
-		let objects = [];
-		for (let k = 0; k < changes.length; k++) {
-			const ch = changes[k];
-			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-		}
-		pendingPids.forEach(pid => {
-			console.debug(`Redo: checking p${pid} against`, objects);
-			describeIntersectionFromObjects(Number(pid), objects);
-		});
-	}
-
-	addLog();
-	return r;
+    const beforeIds = snapshotPointIds();
+    const r = orig_redo.apply(this, arguments);
+    const afterIds = snapshotPointIds();
+    // points newly created by redo (if any) — rather than immediate rely on changes.record,
+    // record a generic pending object to ensure record runs resolution
+    const newPids = [...afterIds].filter(x => !beforeIds.has(x)).map(Number);
+    if (newPids.length) {
+        // we don't always know a single hash here; but push a generic pending marker so record will collect them
+        pendingObjects.push({ hash: null, beforeIds: beforeIds, type: 'redo' });
+    }
+    return r;
 };
 
 const orig_undo = changes.undo;
