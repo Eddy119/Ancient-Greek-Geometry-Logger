@@ -304,7 +304,7 @@ function dist(p, q) {
 	return Math.hypot(p.x - q.x, p.y - q.y);
 }
 
-// engine-created points are probably identical to window.points so tolerance is prob unneccessary
+// engine-created points are probably identical to window.points so tolerance is prob unneccessary, keep for now
 function pointOnLine(pid, a, b, tol = 1e-6) {
 	const P = pointCoords(pid);
 	const A = pointCoords(a);
