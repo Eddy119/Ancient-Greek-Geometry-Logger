@@ -53,18 +53,24 @@ function addDependency(hash, info) {
 function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
 	pointDependencies[pid] = { desc, expr, change: ch, point: ptObj };
+	// record which jump created this point for safe undo
+	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
+	if (!window._jumpPointMap) window._jumpPointMap = {};
+	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
+	window._jumpPointMap[jIndex].add(String(pid));
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
 	}
+}
 	//  // record under current jump
     // const jIndex = changes.jumps.length - 1;
     // if (!jumpPointMap[jIndex]) jumpPointMap[jIndex] = [];
     // jumpPointMap[jIndex].push(pid);
 
-    if (window.points && window.points[pid]) {
-        window.points[pid].symbolic = `p${pid}`;
-    }
-}
+//     if (window.points && window.points[pid]) {
+//         window.points[pid].symbolic = `p${pid}`;
+//     }
+// }
 
 function renderDependencyMap() {
 	const div = document.createElement('div');
@@ -254,7 +260,7 @@ window.makeline = function(p1, p2, spec) {
 	const afterSet = snapshotPointIds();
 	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
 
-	// gather *all* objects so far, not just this jump
+	// gather *all* objects so far (up to current changes)
 	let objects = [];
 	for (let k = 0; k < changes.length; k++) {
 		const ch = changes[k];
@@ -262,10 +268,21 @@ window.makeline = function(p1, p2, spec) {
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
 
-	newPids.forEach(pid => {
-		console.debug(`Makeline: checking p${pid} against`, objects); // still don't see any pointDependencies added
-		describeIntersectionFromObjects(pid, objects);
-	});
+	console.debug('Makeline newPids:', newPids, 'objects.len=', objects.length);
+	for (let pid of newPids) {
+		console.debug(`Makeline: checking p${pid} against`, objects);
+		const resDesc = describeIntersectionFromObjects(pid, objects);
+		if (!resDesc) {
+			// fallback: try pairs where one object is the newly created line (if identifiable)
+			const lastLineHash = `${p1}L${p2}`;
+			for (let obj of objects) {
+				if (obj === lastLineHash) continue;
+				const tryObjs = [lastLineHash, obj];
+				console.debug(`Makeline fallback: trying p${pid} against`, tryObjs);
+				describeIntersectionFromObjects(pid, tryObjs);
+			}
+		}
+	}
 	addLog();
 	return res;
 };
@@ -284,10 +301,11 @@ window.makearc = function(c, e, r, spec) {
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
 
-	newPids.forEach(pid => {
+	console.debug('Makearc newPids:', newPids, 'objects.len=', objects.length);
+	for (let pid of newPids) {
 		console.debug(`Makearc: checking p${pid} against`, objects);
 		describeIntersectionFromObjects(pid, objects);
-	});
+	}
 	addLog();
 	return res;
 };
@@ -296,34 +314,40 @@ const orig_replay = changes.replay;
 changes.replay = function() {
 	clearLog();
 	lastProcessedJump = 0;
+	// snapshot before
+	const beforeAll = snapshotPointIds();
 	const res = orig_replay.apply(this, arguments);
+	// snapshot after
+	const afterAll = snapshotPointIds();
 
-	// process all jumps
+	// map coords -> pid for newly created points only
+	const newPidsAll = [...afterAll].filter(x => !beforeAll.has(x)).map(Number);
+	const coordToPid = {};
+	for (let pid of newPidsAll) {
+		const c = pointCoords(pid);
+		if (c) coordToPid[`${c.x.toFixed(6)},${c.y.toFixed(6)}`] = pid;
+	}
+
+	// process each jump: collect objects up to end-of-jump and handle only point changes in that jump
 	for (let j = 1; j < changes.jumps.length; j++) {
 		const start = changes.jumps[j - 1] || 0;
 		const end = changes.jumps[j];
-
-		// build object list up to this jump
 		let objects = [];
 		for (let k = 0; k < end; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 		}
-
-		// get new points from this jump
 		for (let k = start; k < end; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'point') {
-				// find the pid by matching coords
-				for (let pid in window.points) {
-					const coords = pointCoords(pid);
-					if (coords &&
-						Math.abs(coords.x - ch.a) < 1e-6 &&
-						Math.abs(coords.y - ch.b) < 1e-6) {
-						console.debug(`Replay: checking p${pid} against`, objects);
-						describeIntersectionFromObjects(Number(pid), objects);
-					}
+				const key = `${Number(ch.a).toFixed(6)},${Number(ch.b).toFixed(6)}`;
+				const pid = coordToPid[key];
+				if (pid) {
+					console.debug(`Replay: checking p${pid} against`, objects);
+					describeIntersectionFromObjects(Number(pid), objects);
+				} else {
+					console.debug('Replay: point not in newPidsAll, skipping', ch.a, ch.b);
 				}
 			}
 		}
@@ -341,10 +365,10 @@ changes.redo = function() {
 	const afterIds = new Set(Object.keys(window.points));
 
 	// Find new PIDs created during redo
-	const newPids = [...afterIds].filter(x => !beforeIds.has(x));
+	const newPids = [...afterIds].filter(x => !beforeIds.has(x)).map(Number);
 
 	if (newPids.length) {
-		// gather objects created so far
+		// gather objects up to now
 		let objects = [];
 		for (let k = 0; k < changes.length; k++) {
 			const ch = changes[k];
@@ -361,33 +385,35 @@ changes.redo = function() {
 	return r;
 };
 
-
 const orig_undo = changes.undo;
 changes.undo = function() {
 	const lastpointwas = lastpoint;
 	let beforeIds = null;
-	let afterIds = null;
 	if (!lastpointwas) {
 		beforeIds = new Set(Object.keys(window.points));
-		console.debug("b4UndoPointsLength: ", beforeIds);
+		console.debug('b4UndoPoints:', beforeIds);
 	}
 	const r = orig_undo.apply(this, arguments);
 	if (!lastpointwas) {
-		afterIds = new Set(Object.keys(window.points));
-		// const afterUndoPointsLength = window.points.length;
-
-		console.debug("afterUndoPointsLength: ", window.points.length, " afterIds: ", afterIds);
-
+		const afterIds = new Set(Object.keys(window.points));
 		// any pid that existed before but not after = deleted
 		for (let pid of beforeIds) {
 			if (!afterIds.has(pid)) {
 				console.debug(`Undo: removing p${pid} from pointDependencies`);
+				// remove from pointDependencies if present
 				delete pointDependencies[pid];
+				// remove from jumpPointMap sets as well
+				if (window._jumpPointMap) {
+					for (let j of Object.keys(window._jumpPointMap)) {
+						window._jumpPointMap[j].delete(String(pid));
+						if (window._jumpPointMap[j].size === 0) delete window._jumpPointMap[j];
+					}
+				}
 			}
 		}
 
 		logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
-		dependencyMap = {}; // pointDependencies = {};
+		dependencyMap = {};
 		if (changes.jumps.length >= 2) addLog();
 	}
 	return r;
