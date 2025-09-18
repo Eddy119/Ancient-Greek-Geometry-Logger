@@ -263,7 +263,7 @@ window.makeline = function(p1, p2, spec) {
 	}
 
 	newPids.forEach(pid => {
-		console.debug(`Makeline: checking p${pid} against`, objects);
+		console.debug(`Makeline: checking p${pid} against`, objects); // still don't see any pointDependencies added
 		describeIntersectionFromObjects(pid, objects);
 	});
 	addLog();
@@ -300,27 +300,35 @@ changes.replay = function() {
 
 	// process all jumps
 	for (let j = 1; j < changes.jumps.length; j++) {
-		// instead of just this jump, collect all previous objects
-		let objects = [];
-		let pointChanges = [];
+		const start = changes.jumps[j - 1] || 0;
+		const end = changes.jumps[j];
 
-		for (let k = 0; k < changes.jumps[j]; k++) {
+		// build object list up to this jump
+		let objects = [];
+		for (let k = 0; k < end; k++) {
 			const ch = changes[k];
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-			if (ch?.type === 'point') pointChanges.push(ch);
 		}
 
-		// we need this, changes.replay does not call makeline/arc
-		for (let pid in window.points) {
-			const coords = pointCoords(pid);
-			if (!coords) continue;
-			if (pointChanges.some(pc => Math.abs(pc.a - coords.x) < 1e-6 && Math.abs(pc.b - coords.y) < 1e-6)) {
-				console.debug(`Replay: checking p${pid} against`, objects);
-				describeIntersectionFromObjects(Number(pid), objects);
+		// get new points from this jump
+		for (let k = start; k < end; k++) {
+			const ch = changes[k];
+			if (ch?.type === 'point') {
+				// find the pid by matching coords
+				for (let pid in window.points) {
+					const coords = pointCoords(pid);
+					if (coords &&
+						Math.abs(coords.x - ch.a) < 1e-6 &&
+						Math.abs(coords.y - ch.b) < 1e-6) {
+						console.debug(`Replay: checking p${pid} against`, objects);
+						describeIntersectionFromObjects(Number(pid), objects);
+					}
+				}
 			}
 		}
 	}
+
 	addLog();
 	realmoveCount = modules?.test?.score?.() || 0;
 	return res;
