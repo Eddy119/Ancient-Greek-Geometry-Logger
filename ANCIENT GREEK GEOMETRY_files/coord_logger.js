@@ -50,6 +50,7 @@ function addDependency(hash, info) {
 }
 
 function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
+	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
 	pointDependencies[pid] = { desc, expr, change: ch, point: ptObj };
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
