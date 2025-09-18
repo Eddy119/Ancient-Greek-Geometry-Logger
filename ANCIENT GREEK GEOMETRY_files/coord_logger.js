@@ -253,18 +253,18 @@ window.makeline = function(p1, p2, spec) {
 	const res = orig_makeline.apply(this, arguments);
 	const afterSet = snapshotPointIds();
 	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
-	// gather objects from last jump
-	const jIndex = changes.jumps.length - 1;
-	const start = changes.jumps[jIndex - 1] || 0, end = changes.jumps[jIndex] || changes.length;
+
+	// gather *all* objects so far, not just this jump
 	let objects = [];
-	for (let k = start; k < end; k++) {
+	for (let k = 0; k < changes.length; k++) {
 		const ch = changes[k];
 		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
+
 	newPids.forEach(pid => {
-		console.debug(`Makeline: checking p${pid} against`, objects); // don't see any pointDependencies added 
-		describeIntersectionFromObjects(pid, objects); 
+		console.debug(`Makeline: checking p${pid} against`, objects);
+		describeIntersectionFromObjects(pid, objects);
 	});
 	addLog();
 	return res;
@@ -276,17 +276,17 @@ window.makearc = function(c, e, r, spec) {
 	const res = orig_makearc.apply(this, arguments);
 	const afterSet = snapshotPointIds();
 	const newPids = [...afterSet].filter(x => !beforeSet.has(x)).map(Number);
-	const jIndex = changes.jumps.length - 1;
-	const start = changes.jumps[jIndex - 1] || 0, end = changes.jumps[jIndex] || changes.length;
+
 	let objects = [];
-	for (let k = start; k < end; k++) {
+	for (let k = 0; k < changes.length; k++) {
 		const ch = changes[k];
 		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
+
 	newPids.forEach(pid => {
 		console.debug(`Makearc: checking p${pid} against`, objects);
-		describeIntersectionFromObjects(pid, objects); 
+		describeIntersectionFromObjects(pid, objects);
 	});
 	addLog();
 	return res;
