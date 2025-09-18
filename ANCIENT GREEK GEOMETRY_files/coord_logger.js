@@ -262,7 +262,10 @@ window.makeline = function(p1, p2, spec) {
 		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
-	newPids.forEach(pid => describeIntersectionFromObjects(pid, objects));
+	newPids.forEach(pid => {
+		console.debug(`Makeline: checking p${pid} against`, objects); // don't see any pointDependencies added 
+		describeIntersectionFromObjects(pid, objects); 
+	});
 	addLog();
 	return res;
 };
@@ -281,7 +284,10 @@ window.makearc = function(c, e, r, spec) {
 		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 	}
-	newPids.forEach(pid => describeIntersectionFromObjects(pid, objects));
+	newPids.forEach(pid => {
+		console.debug(`Makearc: checking p${pid} against`, objects);
+		describeIntersectionFromObjects(pid, objects); 
+	});
 	addLog();
 	return res;
 };
@@ -305,6 +311,7 @@ changes.replay = function() {
 			if (ch?.type === 'point') pointChanges.push(ch);
 		}
 
+		// we need this, changes.replay does not call makeline/arc
 		for (let pid in window.points) {
 			const coords = pointCoords(pid);
 			if (!coords) continue;
@@ -320,29 +327,61 @@ changes.replay = function() {
 };
 
 const orig_redo = changes.redo;
-changes.redo = function() { const r = orig_redo.apply(this, arguments); addLog(); return r; };
+changes.redo = function() {
+	const beforeIds = new Set(Object.keys(window.points));
+	const r = orig_redo.apply(this, arguments);
+	const afterIds = new Set(Object.keys(window.points));
+
+	// Find new PIDs created during redo
+	const newPids = [...afterIds].filter(x => !beforeIds.has(x));
+
+	if (newPids.length) {
+		// gather objects created so far
+		let objects = [];
+		for (let k = 0; k < changes.length; k++) {
+			const ch = changes[k];
+			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
+			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
+		}
+		newPids.forEach(pid => {
+			console.debug(`Redo: checking p${pid} against`, objects);
+			describeIntersectionFromObjects(Number(pid), objects);
+		});
+	}
+
+	addLog();
+	return r;
+};
+
 
 const orig_undo = changes.undo;
 changes.undo = function() {
-	const beforeIds = new Set(Object.keys(window.points));
-	console.log("b4UndoPointsLength: ", beforeIds);
+	const lastpointwas = lastpoint;
+	let beforeIds = null;
+	let afterIds = null;
+	if (!lastpointwas) {
+		beforeIds = new Set(Object.keys(window.points));
+		console.debug("b4UndoPointsLength: ", beforeIds);
+	}
 	const r = orig_undo.apply(this, arguments);
-	const afterIds = new Set(Object.keys(window.points));
-	// const afterUndoPointsLength = window.points.length;
+	if (!lastpointwas) {
+		afterIds = new Set(Object.keys(window.points));
+		// const afterUndoPointsLength = window.points.length;
 
-	console.log("afterUndoPointsLength: ", window.points.length, " afterIds: ", afterIds);
+		console.debug("afterUndoPointsLength: ", window.points.length, " afterIds: ", afterIds);
 
-    // any pid that existed before but not after = deleted
-    for (let pid of beforeIds) {
-        if (!afterIds.has(pid)) {
-            console.log(`Undo: removing p${pid} from pointDependencies`);
-            delete pointDependencies[pid];
-        }
-    }
+		// any pid that existed before but not after = deleted
+		for (let pid of beforeIds) {
+			if (!afterIds.has(pid)) {
+				console.debug(`Undo: removing p${pid} from pointDependencies`);
+				delete pointDependencies[pid];
+			}
+		}
 
-	logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
-	dependencyMap = {}; // pointDependencies = {};
-	if (changes.jumps.length >= 2) addLog();
+		logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
+		dependencyMap = {}; // pointDependencies = {};
+		if (changes.jumps.length >= 2) addLog();
+	}
 	return r;
 };
 
