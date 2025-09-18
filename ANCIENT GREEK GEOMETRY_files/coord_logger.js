@@ -17,6 +17,7 @@ let lastProcessedJump = 0;
 // dependency tracking
 let dependencyMap = {};
 let pointDependencies = {}; // map pointId → description of how it was created
+let jumpPointMap = {}; // jump index → array of point IDs created
 
 // symbolic points dictionary (user can seed known exact points here)
 let symbolicPoints = {
@@ -55,6 +56,14 @@ function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
 	}
+	 // record under current jump
+    const jIndex = changes.jumps.length - 1;
+    if (!jumpPointMap[jIndex]) jumpPointMap[jIndex] = [];
+    jumpPointMap[jIndex].push(pid);
+
+    if (window.points && window.points[pid]) {
+        window.points[pid].symbolic = `p${pid}`;
+    }
 }
 
 function renderDependencyMap() {
@@ -314,7 +323,18 @@ changes.redo = function() { const r = orig_redo.apply(this, arguments); addLog()
 
 const orig_undo = changes.undo;
 changes.undo = function() {
+	const prevJumps = changes.jumps.length;
 	const r = orig_undo.apply(this, arguments);
+	const newJumps = changes.jumps.length;
+
+	if (prevJumps > newJumps) {
+        const undoneJump = prevJumps - 1; // the jump index we just lost
+        const doomed = jumpPointMap[undoneJump] || [];
+        doomed.forEach(pid => delete pointDependencies[pid]);
+        delete jumpPointMap[undoneJump];
+        console.log(`Undo removed points from jump ${undoneJump}:`, doomed);
+    	}
+
 	logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
 	dependencyMap = {}; // pointDependencies = {};
 	if (changes.jumps.length >= 2) addLog();
