@@ -324,27 +324,20 @@ changes.redo = function() { const r = orig_redo.apply(this, arguments); addLog()
 
 const orig_undo = changes.undo;
 changes.undo = function() {
-	const b4UndoPointsLength = window.points.length;
-	console.log("b4UndoPointsLength: ", b4UndoPointsLength);
+	const beforeIds = new Set(Object.keys(window.points));
+	console.log("b4UndoPointsLength: ", beforeIds);
 	const r = orig_undo.apply(this, arguments);
+	const afterIds = new Set(Object.keys(window.points));
 	// const afterUndoPointsLength = window.points.length;
 
-	console.log("afterUndoPointsLength: ", window.points.length);
+	console.log("afterUndoPointsLength: ", window.points.length, " afterIds: ", afterIds);
 
-	// just check the ones within b4UndoPointsLength - 1 and afterUndoPointsLength - 1 instead of every entry , also we're not using jumpPointMap
-	if (b4UndoPointsLength < window.points.length) {
-		console.log("b4UndoPointsLength < window.points.length");
- 		for (let j = b4UndoPointsLength - 1; j >= window.points.length - 1; j--) {
-			console.log("deletion starting for pointDependencies[j], j = ", j);
-			const prevPoint = window.points[j];
-			if (prevPoint) {
-				delete pointDependencies[j];
-			} else {
-				console.log("window.points " + j + " is undefined");
-			}
-			// delete jumpPointMap[j]; // unused
-			console.log(`Undo removed points from jump ${j}:`, doomed);
-		}
+    // any pid that existed before but not after = deleted
+    for (let pid of beforeIds) {
+        if (!afterIds.has(pid)) {
+            console.log(`Undo: removing p${pid} from pointDependencies`);
+            delete pointDependencies[pid];
+        }
     }
 
 	logEntries = []; logEntryChangeIndex = []; entrySerial = 0;
