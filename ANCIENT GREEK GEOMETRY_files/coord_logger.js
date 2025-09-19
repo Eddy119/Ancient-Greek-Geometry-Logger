@@ -54,15 +54,34 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr, ch = null, ptObj = null) { // low priority todo: ch = point in changes map, ptObj I'm not sure
+function addPointDependency(pid, desc, expr) {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
-	pointDependencies[pid] = { desc, expr, change: ch, point: ptObj };
+	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid] }; // ch = point in changes map, point = ptObj
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
 	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
 	window._jumpPointMap[jIndex].add(String(pid));
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
+	}
+	addChangesToPointDependency(pid);
+}
+
+function addChangesToPointDependency(pid) {
+	const p = window.points?.[pid];
+	if (!p) {
+		console.error(`addChangesToPointDependency: no point with id ${pid}`);
+		return;
+	} // safety
+	for (let i = changes.jumps[changes.jumps.length - 2]; i < changes.jumps[changes.jumps.length - 1]; i++) {
+		const ch = changes[i];
+		if (!ch || ch.type !== "point") continue;
+
+		// compare coordinates (loose float comparison if needed)
+		if (ch.a === p.x && ch.b === p.y) {
+			// attach this change record to the pointDependencies entry
+			pointDependencies[pid].change = {index: i, entry: changes[i]};
+		}
 	}
 }
 
