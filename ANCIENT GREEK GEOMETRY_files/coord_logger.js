@@ -157,19 +157,12 @@ function formatChange(ch, actionId) {
 	let a = ch.a ?? ch.obj?.a ?? '?';
 	let b = ch.b ?? ch.obj?.b ?? '?';
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
+	const moveNum = modules?.test?.score?.() || realmoveCount;
 
 	if (ch.type === 'arc') {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
-		return `Action ${actionId}: Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
-	} else if (ch.type === 'realline') {
-		const currentHash = window.location.hash || '';
-		if (!currentHash.includes(hash)) {
-			return null; // hide phantom line
-		}
-		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
-		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
-		let logStr = `Action ${actionId}: Line ${hash}\n  endpoints: p${a}, p${b}`;
+		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 		const intersections = [];
 		for (let pid of Object.keys(pointDependencies)) {
 			const info = pointDependencies[pid];
@@ -181,12 +174,34 @@ function formatChange(ch, actionId) {
 			logStr += `\n  Intersections:\n    ` + intersections.join('\n    ');
 		}
 		return logStr;
+
+	} else if (ch.type === 'realline') {
+		const currentHash = window.location.hash || '';
+		if (!currentHash.includes(hash)) {
+			return null; // hide phantom line
+		}
+		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
+		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
+		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
+		const intersections = [];
+		for (let pid of Object.keys(pointDependencies)) {
+			const info = pointDependencies[pid];
+			if (info.desc.includes(hash)) {
+				intersections.push(`p${pid} = ${info.desc} => (${info.expr.x}, ${info.expr.y})`);
+			}
+		}
+		if (intersections.length > 0) {
+			logStr += `\n  Intersections:\n    ` + intersections.join('\n    ');
+		}
+		return logStr;
+
 	} else if (ch.type === 'newlayer') {
 		addDependency(`LAYER${actionId}`, { type: 'layer', depends: [], actionId });
-		return `Action ${actionId}: NewLayer`;
+		return `Action ${actionId} (Move ${moveNum}): NewLayer`;
 	}
 	return null;
 }
+
 
 // --- helpers ---
 function snapshotPointIds() {
