@@ -602,10 +602,10 @@ changes.record = function(finished) {
 					const [a, b] = obj.depends;
 
 					// Collect dependencies only for these points
-					collectPointDependenciesRecursive(dep);
+					collectPointDependenciesRecursive(a,b); // ugh idk do we input the hash? or the point ids in the hash?
 
 					// Simplify them (optional here, or only when needed)
-					simplifyPointRecursive(dep);
+					simplifyPointRecursive(a,b); // same here, what's our input
 				}
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
@@ -672,9 +672,9 @@ changes.replay = function() {
 		const dep = dependencyMap[hash];
 		if (dep.type === 'line' || dep.type === 'arc') {
 			// Collect symbolic dependencies first
-			collectPointDependenciesRecursive(dep);
+			collectPointDependenciesRecursive(dep); // we need to either input the hash or point ids of the hash
 			// Then simplify only points built on
-			simplifyPointRecursive(dep);
+			simplifyPointRecursive(dep); // ditto
 		}
 	}
 	addLog();
@@ -694,8 +694,8 @@ changes.redo = function() {
     for (let hash in dependencyMap) {
         const dep = dependencyMap[hash];
         if ((dep.type === 'line' || dep.type === 'arc') && !redoCache[hash]) {
-            collectPointDependenciesRecursive(dep);
-            simplifyPointRecursive(dep);
+            collectPointDependenciesRecursive(dep); // we need to either input the hash or point ids of the hash
+            simplifyPointRecursive(dep); // ditto
             redoCache[hash] = true;
         }
     }
@@ -762,12 +762,12 @@ function addLog() {
 	}
 }
 
-function collectPointDependenciesRecursive(dep, visited = new Set()) {
+function collectPointDependenciesRecursive(pid, visited = new Set()) { // we need to decide if we want to input the hash itself or point ids of the hash
 	if (!dep) return [];
 	const result = [];
 	for (const pid of dep.depends) {
 		if (!visited.has(pid)) {
-			visited.add(pid);
+			visited.add(pid); // idk where it should but it should call describeIntersectionFromObjects(pid or pids of hash) somewhere
 			const subdep = dependencyMap[pid];
 			result.push(pid);
 			if (subdep) {
@@ -787,11 +787,11 @@ function collectPointDependenciesRecursive(dep, visited = new Set()) {
 // 	}
 // }
 
-function simplifyPointRecursive(pid) {
+function simplifyPointRecursive(pid) { // we need to decide if we want to input the hash or point ids of the hash
   const dep = dependencyMap[pid];
   if (!dep) return; // missing entry, bail
 
-  const subpoints = collectPointDependenciesRecursive(dep);
+  const subpoints = collectPointDependenciesRecursive(dep); // might not be needed if both called somewhere else
   for (const spid of subpoints) {
     simplifyPointRecursive(spid); // recurse
   }
