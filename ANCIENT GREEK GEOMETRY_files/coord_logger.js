@@ -168,12 +168,19 @@ function collectIntersectionsForHash(targetHash) {
 	return intersections;
 }
 
-function getpointDependenciesDesc(pid) { // unused function
-    const info = pointDependencies[pid];
-    if (info && typeof info.desc === 'string') {
-        return info.desc;
-    }
-    return "why would it not exist?";
+function formatPoint(pid) {
+	const dep = pointDependencies[pid];
+	if (dep) {
+		// Constructed point with dependency info
+		return `p${pid} = ${dep.desc} => (${dep.expr.x}, ${dep.expr.y})`;
+	} else {
+		// Likely an original/axiom point
+		const p = window.points?.[pid];
+		if (p) {
+			return `p${pid} = original => (${p.x}, ${p.y})`;
+		}
+		return `p${pid} = unknown`;
+	}
 }
 
 // formatting helper
@@ -194,16 +201,9 @@ function formatChange(ch, actionId) {
 		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 
 		logStr += `\n  Intersections:\n    `;
-		// logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
-		// logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
-		logStr += `p${a} = ${getpointDependenciesDesc(a)} => (WIP)\n    `;
-		logStr += `p${b} = ${getpointDependenciesDesc(b)} => (WIP)`;
+		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
 
-		// const intersections = collectIntersectionsForHash(hash);
-		// if (intersections.length > 0) {
-		// 	logStr += `\n  Intersections:\n    `;
-		// 	logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
-		// }
+
 		return logStr;
 
 	} else if (ch.type === 'realline') {
@@ -217,17 +217,8 @@ function formatChange(ch, actionId) {
 		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
 
 		logStr += `\n  Intersections:\n    `;
-		// logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
-		// logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
-		logStr += `p${a} = ${getpointDependenciesDesc(a)} => (WIP)\n    `;
-		logStr += `p${b} = ${getpointDependenciesDesc(b)} => (WIP)`;
+		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
 
-		// const intersections = getpointDependenciesDesc()
-		// if (intersections.length > 0) {
-		// 	logStr += `\n  Intersections:\n    `;
-		// 	// logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
-		// 	logStr += intersections.map(it => `p${it.pid} = ${it.info.desc}`).join('\n    ');
-		// }
 		return logStr;
 
 	} else if (ch.type === 'newlayer') {
