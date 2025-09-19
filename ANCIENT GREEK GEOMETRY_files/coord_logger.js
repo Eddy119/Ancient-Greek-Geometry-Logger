@@ -172,7 +172,8 @@ function formatPoint(pid) {
 	const dep = pointDependencies[pid];
 	if (dep) {
 		// Constructed point with dependency info
-		return `p${pid} = ${dep.desc} => (${dep.expr.x}, ${dep.expr.y})`;
+		// return `p${pid} = ${dep.desc} => (${dep.expr.x}, ${dep.expr.y})`;
+		return `p${pid} = ${dep.desc}`; // for now
 	} else {
 		// Likely an original/axiom point
 		const p = window.points?.[pid];
