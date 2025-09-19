@@ -54,9 +54,9 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr) {
+function addPointDependency(pid, desc, expr, parents = []) {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
-	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid] }; // ch = point in changes map, point = ptObj
+	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid], parents: parents.slice() }; // copy of parents array // ch = point in changes map, point = ptObj
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
 	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
@@ -169,7 +169,7 @@ function intersectArcArc(pid, a, b, c, d) {
 	return expr;
 }
 
-// Helper to collect matching pointDependencies for this object hash, pointDependencies don't have parents object yet, might add later
+// Unused Helper to collect matching pointDependencies for this object hash, keep for now
 function collectIntersectionsForHash(targetHash) {
 	const intersections = [];
 	for (let pid of Object.keys(pointDependencies)) {
@@ -297,6 +297,8 @@ function describeIntersectionFromObjects(pid, objects) {
 				else if (type1 === 'arc' && type2 === 'line') expr = intersectArcLine(pid, a1, b1, a2, b2);
 				else if (type1 === 'line' && type2 === 'arc') expr = intersectArcLine(pid, a2, b2, a1, b1);
 				else if (type1 === 'arc' && type2 === 'arc') expr = intersectArcArc(pid, a1, b1, a2, b2);
+				 // attach parents to pointDependencies
+				pointDependencies[pid].parents = [h1, h2];
 				return { pid, parents: [h1, h2], expr };
 			}
 		}
