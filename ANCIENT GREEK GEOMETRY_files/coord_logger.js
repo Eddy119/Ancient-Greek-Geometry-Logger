@@ -54,7 +54,7 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr, ch = null, ptObj = null) {
+function addPointDependency(pid, desc, expr, ch = null, ptObj = null) { // low priority todo: ch = point in changes map, ptObj I'm not sure
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
 	pointDependencies[pid] = { desc, expr, change: ch, point: ptObj };
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
@@ -168,6 +168,17 @@ function collectIntersectionsForHash(targetHash) {
 	return intersections;
 }
 
+function getpointDependenciesDesc(desc) {
+	const matches = [];
+	for (let pid of Object.keys(pointDependencies)) {
+		const info = pointDependencies[pid];
+		if (info && info.desc === desc) {
+			matches.push({ pid, info });
+		}
+	}
+	return matches;
+}
+
 // formatting helper
 function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
@@ -202,10 +213,11 @@ function formatChange(ch, actionId) {
 
 		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
 
-		const intersections = collectIntersectionsForHash(hash);
+		const intersections = getpointDependenciesDesc()
 		if (intersections.length > 0) {
 			logStr += `\n  Intersections:\n    `;
-			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
+			// logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
+			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc}`).join('\n    ');
 		}
 		return logStr;
 
