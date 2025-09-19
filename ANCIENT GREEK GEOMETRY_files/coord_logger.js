@@ -145,28 +145,145 @@ function clearLog() {
 if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 // --- Intersections ---
+// Updated: produce symbolic expressions (strings) and attach correct pointDependencies entry for the given pid.
+
+function _getSymCoord(id, coord) {
+	// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
+	if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
+	if (symbolicPoints[id] && typeof symbolicPoints[id][coord] !== 'undefined') return symbolicPoints[id][coord];
+	return `p${id}${coord}`;
+}
+
 function intersectLineLine(pid, a, b, c, d) {
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b);
-	ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	const expr = { x: `(det(p${a},p${b},p${c},p${d}))x`, y: `(det(p${a},p${b},p${c},p${d}))y` };
-	addPointDependency(pid, `line(${a},${b}) ∩ line(${c},${d})`, expr);
+	// build symbolic formula for intersection of line AB and CD using determinant formula
+	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
+	const x1 = _getSymCoord(a,'x'), y1 = _getSymCoord(a,'y');
+	const x2 = _getSymCoord(b,'x'), y2 = _getSymCoord(b,'y');
+	const x3 = _getSymCoord(c,'x'), y3 = _getSymCoord(c,'y');
+	const x4 = _getSymCoord(d,'x'), y4 = _getSymCoord(d,'y');
+
+	const den = `(${x1} - ${x2})*(${y3} - ${y4}) - (${y1} - ${y2})*(${x3} - ${x4})`;
+	const numx = `((${x1}*${y2} - ${y1}*${x2})*(${x3} - ${x4}) - (${x1} - ${x2})*(${x3}*${y4} - ${y3}*${x4}))`;
+	const numy = `((${x1}*${y2} - ${y1}*${x2})*(${y3} - ${y4}) - (${y1} - ${y2})*(${x3}*${y4} - ${y3}*${x4}))`;
+	const expr = { x: `(${numx})/(${den})`, y: `(${numy})/(${den})` };
+	addPointDependency(pid, `line(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}L${b}`, `${c}L${d}`]);
 	return expr;
 }
 
 function intersectArcLine(pid, a, b, c, d) {
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b);
-	ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	const expr = { x: `(arc(${a},${b})∩line(${c},${d}))x`, y: `(arc(${a},${b})∩line(${c},${d}))y` };
-	addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, expr);
-	return expr;
+	// arc (center a, edge b) intersect line (c,d)
+	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
+	// numeric helpers to decide ordering (which of the two intersections matches pid)
+	const P = pointCoords(pid);
+	const E = pointCoords(c); const L = pointCoords(d);
+	const C = pointCoords(a); const Edge = pointCoords(b);
+	if (!E || !L || !C || !Edge) {
+		// fallback: just attach symbolic placeholders
+		const expr = { x: `(arc(${a},${b})∩line(${c},${d}))x`, y: `(arc(${a},${b})∩line(${c},${d}))y` };
+		addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}A${b}`, `${c}L${d}`]);
+		return expr;
+	}
+	// compute numeric intersections using standard quadratic method from geo.js
+	const ex = E.x, ey = E.y, lx = L.x, ly = L.y;
+	const cx = C.x, cy = C.y;
+	const r = Math.hypot(Edge.x - cx, Edge.y - cy);
+	const dx = lx - ex, dy = ly - ey;
+	const fx = ex - cx, fy = ey - cy;
+	const Acoef = dx*dx + dy*dy;
+	const Bcoef = 2*(fx*dx + fy*dy);
+	const Ccoef = (fx*fx + fy*fy) - r*r;
+	const disc = Bcoef*Bcoef - 4*Acoef*Ccoef;
+	if (disc < 0) {
+		// no real intersection; still attach symbolic
+		const expr = { x: `(arc(${a},${b})∩line(${c},${d}))x`, y: `(arc(${a},${b})∩line(${c},${d}))y` };
+		addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}A${b}`, `${c}L${d}`]);
+		return expr;
+	}
+	const sqrtD = Math.sqrt(disc);
+	const t1 = (-Bcoef - sqrtD) / (2*Acoef);
+	const t2 = (-Bcoef + sqrtD) / (2*Acoef);
+	const p1 = { x: ex + t1*dx, y: ey + t1*dy };
+	const p2 = { x: ex + t2*dx, y: ey + t2*dy };
+	// construct symbolic expressions for p1 and p2 in terms of parameters
+	const sx_ex = _getSymCoord(c,'x'), sx_ey = _getSymCoord(c,'y');
+	const sx_lx = _getSymCoord(d,'x'), sx_ly = _getSymCoord(d,'y');
+	const sx_cx = _getSymCoord(a,'x'), sx_cy = _getSymCoord(a,'y');
+	const sx_edge_x = _getSymCoord(b,'x'), sx_edge_y = _getSymCoord(b,'y');
+	const sx_r2 = `((${sx_edge_x} - ${sx_cx})^2 + (${sx_edge_y} - ${sx_cy})^2)`;
+	const sx_dx = `(${sx_lx} - ${sx_ex})`; const sx_dy = `(${sx_ly} - ${sx_ey})`;
+	const sx_fx = `(${sx_ex} - ${sx_cx})`; const sx_fy = `(${sx_ey} - ${sx_cy})`;
+	const sx_A = `(${sx_dx})^2 + (${sx_dy})^2`;
+	const sx_B = `2*(${sx_fx}*${sx_dx} + ${sx_fy}*${sx_dy})`;
+	const sx_C = `(${sx_fx})^2 + (${sx_fy})^2 - (${sx_r2})`;
+	// symbolic t1/t2 (quadratic formula)
+	const sx_disc = `(${sx_B})^2 - 4*(${sx_A})*(${sx_C})`;
+	const sx_t1 = `((-1*(${sx_B})) - sqrt(${sx_disc}))/(2*(${sx_A}))`;
+	const sx_t2 = `((-1*(${sx_B})) + sqrt(${sx_disc}))/(2*(${sx_A}))`;
+	const expr1 = { x: `(${sx_ex}) + (${sx_t1})*(${sx_dx})`, y: `(${sx_ey}) + (${sx_t1})*(${sx_dy})` };
+	const expr2 = { x: `(${sx_ex}) + (${sx_t2})*(${sx_dx})`, y: `(${sx_ey}) + (${sx_t2})*(${sx_dy})` };
+	// choose which symbolic expression corresponds to numeric pid
+	let chosenExpr = expr1;
+	if (P) {
+		const d1 = Math.hypot(P.x - p1.x, P.y - p1.y);
+		const d2 = Math.hypot(P.x - p2.x, P.y - p2.y);
+		chosenExpr = (d2 < d1) ? expr2 : expr1;
+	}
+	addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, chosenExpr, [`${a}A${b}`, `${c}L${d}`]);
+	return chosenExpr;
 }
 
 function intersectArcArc(pid, a, b, c, d) {
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b);
-	ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	const expr = { x: `(arc(${a},${b})∩arc(${c},${d}))x`, y: `(arc(${a},${b})∩arc(${c},${d}))y` };
-	addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, expr);
-	return expr;
+	// two circles intersection (arc centers a,c with edge b,d respectively)
+	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
+	const P = pointCoords(pid);
+	const C1 = pointCoords(a); const E1 = pointCoords(b);
+	const C2 = pointCoords(c); const E2 = pointCoords(d);
+	if (!C1 || !E1 || !C2 || !E2) {
+		const expr = { x: `(arc(${a},${b})∩arc(${c},${d}))x`, y: `(arc(${a},${b})∩arc(${c},${d}))y` };
+		addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, expr, [`${a}A${b}`, `${c}A${d}`]);
+		return expr;
+	}
+	// numeric intersection using known formula (from earlier code)
+	const x0 = C1.x, y0 = C1.y, r0 = Math.hypot(E1.x - C1.x, E1.y - C1.y);
+	const x1 = C2.x, y1 = C2.y, r1 = Math.hypot(E2.x - C2.x, E2.y - C2.y);
+	const dx = x1 - x0, dy = y1 - y0;
+	const dist = Math.hypot(dx, dy);
+	if (dist > (r0 + r1) || dist < Math.abs(r0 - r1) || dist === 0) {
+		const expr = { x: `(arc(${a},${b})∩arc(${c},${d}))x`, y: `(arc(${a},${b})∩arc(${c},${d}))y` };
+		addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, expr, [`${a}A${b}`, `${c}A${d}`]);
+		return expr;
+	}
+	const A = ((r0*r0) - (r1*r1) + (dist*dist)) / (2*dist);
+	const x2 = x0 + (dx * A / dist);
+	const y2 = y0 + (dy * A / dist);
+	const h = Math.sqrt(Math.max(0, r0*r0 - A*A));
+	const rx = -dy * (h / dist);
+	const ry = dx * (h / dist);
+	const p1 = { x: x2 + rx, y: y2 + ry };
+	const p2 = { x: x2 - rx, y: y2 - ry };
+	// build symbolic expressions
+	const sx_x0 = _getSymCoord(a,'x'), sx_y0 = _getSymCoord(a,'y');
+	const sx_r0sq = `((${_getSymCoord(b,'x')} - ${sx_x0})^2 + (${_getSymCoord(b,'y')} - ${sx_y0})^2)`;
+	const sx_x1 = _getSymCoord(c,'x'), sx_y1 = _getSymCoord(c,'y');
+	const sx_r1sq = `((${_getSymCoord(d,'x')} - ${sx_x1})^2 + (${_getSymCoord(d,'y')} - ${sx_y1})^2)`;
+	const sx_dx = `(${sx_x1} - ${sx_x0})`; const sx_dy = `(${sx_y1} - ${sx_y0})`;
+	const sx_d = `sqrt((${sx_dx})^2 + (${sx_dy})^2)`;
+	const sx_A = `(((${sx_r0sq}) - (${sx_r1sq}) + (${sx_d})^2)/(2*${sx_d}))`;
+	const sx_x2 = `(${sx_x0} + (${sx_dx})*(${sx_A})/(${sx_d}))`;
+	const sx_y2 = `(${sx_y0} + (${sx_dy})*(${sx_A})/(${sx_d}))`;
+	const sx_h = `sqrt(max(0, (${sx_r0sq}) - (${sx_A})^2))`;
+	const sx_rx = `(-(${sx_dy})*(${sx_h})/(${sx_d}))`;
+	const sx_ry = `(${sx_dx}*(${sx_h})/(${sx_d}))`;
+	const expr1 = { x: `(${sx_x2}) + (${sx_rx})`, y: `(${sx_y2}) + (${sx_ry})` };
+	const expr2 = { x: `(${sx_x2}) - (${sx_rx})`, y: `(${sx_y2}) - (${sx_ry})` };
+	let chosen = expr1;
+	if (P) {
+		const d1 = Math.hypot(P.x - p1.x, P.y - p1.y);
+		const d2 = Math.hypot(P.x - p2.x, P.y - p2.y);
+		chosen = (d2 < d1) ? expr2 : expr1;
+	}
+	addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, chosen, [`${a}A${b}`, `${c}A${d}`]);
+	return chosen;
 }
 
 // Unused Helper to collect matching pointDependencies for this object hash, keep for now
