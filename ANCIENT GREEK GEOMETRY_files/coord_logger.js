@@ -150,7 +150,7 @@ function intersectArcArc(pid, a, b, c, d) {
 	return expr;
 }
 
-// Helper to collect matching pointDependencies for this object hash
+// Helper to collect matching pointDependencies for this object hash, pointDependencies don't have parents object yet, might add later
 function collectIntersectionsForHash(targetHash) {
 	const intersections = [];
 	for (let pid of Object.keys(pointDependencies)) {
@@ -168,15 +168,12 @@ function collectIntersectionsForHash(targetHash) {
 	return intersections;
 }
 
-function getpointDependenciesDesc(desc) {
-	const matches = [];
-	for (let pid of Object.keys(pointDependencies)) {
-		const info = pointDependencies[pid];
-		if (info && info.desc === desc) {
-			matches.push({ pid, info });
-		}
-	}
-	return matches;
+function getpointDependenciesDesc(pid) { // unused function
+    const info = pointDependencies[pid];
+    if (info && typeof info.desc === 'string') {
+        return info.desc;
+    }
+    return null;
 }
 
 // formatting helper
@@ -196,11 +193,15 @@ function formatChange(ch, actionId) {
 
 		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 
-		const intersections = collectIntersectionsForHash(hash);
-		if (intersections.length > 0) {
-			logStr += `\n  Intersections:\n    `;
-			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
-		}
+		logStr += `\n  Intersections:\n    `;
+		logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
+		logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+
+		// const intersections = collectIntersectionsForHash(hash);
+		// if (intersections.length > 0) {
+		// 	logStr += `\n  Intersections:\n    `;
+		// 	logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
+		// }
 		return logStr;
 
 	} else if (ch.type === 'realline') {
@@ -213,12 +214,16 @@ function formatChange(ch, actionId) {
 
 		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
 
-		const intersections = getpointDependenciesDesc()
-		if (intersections.length > 0) {
-			logStr += `\n  Intersections:\n    `;
-			// logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
-			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc}`).join('\n    ');
-		}
+		logStr += `\n  Intersections:\n    `;
+		logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
+		logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+
+		// const intersections = getpointDependenciesDesc()
+		// if (intersections.length > 0) {
+		// 	logStr += `\n  Intersections:\n    `;
+		// 	// logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
+		// 	logStr += intersections.map(it => `p${it.pid} = ${it.info.desc}`).join('\n    ');
+		// }
 		return logStr;
 
 	} else if (ch.type === 'newlayer') {
