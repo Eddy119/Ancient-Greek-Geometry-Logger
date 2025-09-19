@@ -153,45 +153,59 @@ function intersectArcArc(pid, a, b, c, d) {
 // formatting helper
 function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
+	// ignore legacy 'line' type if present; we handle 'realline' explicitly
 	if (ch.type === 'line') return null;
+
 	let a = ch.a ?? ch.obj?.a ?? '?';
 	let b = ch.b ?? ch.obj?.b ?? '?';
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
-	const moveNum = modules?.test?.score?.() || realmoveCount;
+	const moveNum = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
+
+	// Helper to collect matching pointDependencies for this object hash
+	function collectIntersectionsForHash(targetHash) {
+		const intersections = [];
+		for (let pid of Object.keys(pointDependencies)) {
+			const info = pointDependencies[pid];
+			let matches = false;
+			if (info && Array.isArray(info.parents)) {
+				matches = info.parents.includes(targetHash);
+			} else if (info && typeof info.desc === 'string') {
+				matches = info.desc.includes(targetHash);
+			}
+			if (matches) {
+				intersections.push({ pid, info });
+			}
+		}
+		return intersections;
+	}
 
 	if (ch.type === 'arc') {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
+
 		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
-		const intersections = [];
-		for (let pid of Object.keys(pointDependencies)) {
-			const info = pointDependencies[pid];
-			if (info.desc.includes(hash)) {
-				intersections.push(`p${pid} = ${info.desc} => (${info.expr.x}, ${info.expr.y})`);
-			}
-		}
+
+		const intersections = collectIntersectionsForHash(hash);
 		if (intersections.length > 0) {
-			logStr += `\n  Intersections:\n    ` + intersections.join('\n    ');
+			logStr += `\n  Intersections:\n    `;
+			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
 		}
 		return logStr;
 
 	} else if (ch.type === 'realline') {
+		// hide engine-split phantom lines (they don't appear in the page hash)
 		const currentHash = window.location.hash || '';
-		if (!currentHash.includes(hash)) {
-			return null; // hide phantom line
-		}
+		if (!currentHash.includes(hash)) return null;
+
 		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
+
 		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
-		const intersections = [];
-		for (let pid of Object.keys(pointDependencies)) {
-			const info = pointDependencies[pid];
-			if (info.desc.includes(hash)) {
-				intersections.push(`p${pid} = ${info.desc} => (${info.expr.x}, ${info.expr.y})`);
-			}
-		}
+
+		const intersections = collectIntersectionsForHash(hash);
 		if (intersections.length > 0) {
-			logStr += `\n  Intersections:\n    ` + intersections.join('\n    ');
+			logStr += `\n  Intersections:\n    `;
+			logStr += intersections.map(it => `p${it.pid} = ${it.info.desc} => (${it.info.expr.x}, ${it.info.expr.y})`).join('\n    ');
 		}
 		return logStr;
 
@@ -199,9 +213,9 @@ function formatChange(ch, actionId) {
 		addDependency(`LAYER${actionId}`, { type: 'layer', depends: [], actionId });
 		return `Action ${actionId} (Move ${moveNum}): NewLayer`;
 	}
+
 	return null;
 }
-
 
 // --- helpers ---
 function snapshotPointIds() {
