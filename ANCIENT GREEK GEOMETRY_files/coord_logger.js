@@ -173,7 +173,7 @@ function getpointDependenciesDesc(pid) { // unused function
     if (info && typeof info.desc === 'string') {
         return info.desc;
     }
-    return null;
+    return "why would it not exist?";
 }
 
 // formatting helper
@@ -194,8 +194,10 @@ function formatChange(ch, actionId) {
 		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
 
 		logStr += `\n  Intersections:\n    `;
-		logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
-		logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+		// logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
+		// logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+		logStr += `p${a} = ${getpointDependenciesDesc(a)} => (WIP)\n    `;
+		logStr += `p${b} = ${getpointDependenciesDesc(b)} => (WIP)`;
 
 		// const intersections = collectIntersectionsForHash(hash);
 		// if (intersections.length > 0) {
@@ -215,8 +217,10 @@ function formatChange(ch, actionId) {
 		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
 
 		logStr += `\n  Intersections:\n    `;
-		logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
-		logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+		// logStr += `p${a} = ${pointDependencies[a].desc} => (${pointDependencies[a].expr.x}, ${pointDependencies[a].expr.y})\n    `;
+		// logStr += `p${b} = ${pointDependencies[b].desc} => (${pointDependencies[b].expr.x}, ${pointDependencies[b].expr.y})`;
+		logStr += `p${a} = ${getpointDependenciesDesc(a)} => (WIP)\n    `;
+		logStr += `p${b} = ${getpointDependenciesDesc(b)} => (WIP)`;
 
 		// const intersections = getpointDependenciesDesc()
 		// if (intersections.length > 0) {
