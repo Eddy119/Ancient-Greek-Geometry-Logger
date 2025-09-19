@@ -587,17 +587,17 @@ changes.record = function(finished) {
                 // build objects list including the newly-created object hash
                 const objects = collectAllObjectsWith(pend.hash);
 
-                // call describeIntersectionFromObjects for each newly created pid
-                for (const pid of newPids) {
-                    console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects`);
-                    describeIntersectionFromObjects(Number(pid), objects);
-                    if (pointDependencies[pid]) {
-                        console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
-                        try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
-                    } else {
-                        console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
-                    }
-                }
+                // DON'T call describeIntersectionFromObjects for each newly created pid
+                // for (const pid of newPids) {
+                //     console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects`);
+                //     describeIntersectionFromObjects(Number(pid), objects);
+                //     if (pointDependencies[pid]) {
+                //         console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
+                //         try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
+                //     } else {
+                //         console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
+                //     }
+                // }
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
@@ -645,13 +645,13 @@ changes.replay = function() {
 			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
 			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
 		}
-		pendingPids.forEach(pid => {
-			console.debug(`Replay: resolving p${pid} against`, objects);
-			describeIntersectionFromObjects(pid, objects);
-			if (pointDependencies[pid]) {
-				try { simplifyPoint(pid); console.debug(`Replay: simplified p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for replay pid', pid, e); }
-			}
-		});
+		// pendingPids.forEach(pid => {
+		// 	console.debug(`Replay: resolving p${pid} against`, objects);
+		// 	describeIntersectionFromObjects(pid, objects);
+		// 	if (pointDependencies[pid]) {
+		// 		try { simplifyPoint(pid); console.debug(`Replay: simplified p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for replay pid', pid, e); }
+		// 	}
+		// });
 		pendingPids = [];
 	}
 	// cache lengths/radii for all dependencyMap entries (best-effort)
@@ -738,6 +738,25 @@ function addLog() {
 	}
 }
 
+function collectPointDependenciesRecursive(pid, visited = new Set()) {
+	if (visited.has(pid)) return;
+	visited.add(pid);
+
+	const point = window.points[pid];
+	if (!point) return;
+
+	// If this point already has dependencies recorded, skip
+	if (pointDependencies[pid]) return;
+
+	// Mark this point's parents as dependencies
+	pointDependencies[pid] = [...(point.parents || [])];
+
+	// Recurse down its parents
+	for (let parentPid of point.parents || []) {
+		collectPointDependenciesRecursive(parentPid, visited);
+	}
+}
+
 // your helpers
 // // --- New helpers ---
 // function ensurePointDependency(pid, descObj) {
@@ -751,7 +770,7 @@ function addLog() {
 // 	if (simplifiedPoints[pid]) return simplifiedPoints[pid];
 
 // 	const dep = pointDependencies[pid];
-// 	if (!dep) return null;
+// 	if (!dep) {console.debug("simplifyPointRecursive: no dep for", pid, "in pointDependencies"); return null;}
 
 // 	// Recursively simplify parents first
 // 	if (dep.depends) {
@@ -767,18 +786,18 @@ function addLog() {
 // 	return simplifiedPoints[pid];
 // }
 
-// function addLengthDependency(a, b) {
-// 	const expr = `sqrt((${a}.x-${b}.x)^2+(${a}.y-${b}.y)^2)`;
-// 	const simp = nerdamer(expr).simplify().toString();
+function addLengthDependency(a, b) {
+	const expr = `sqrt((${a}.x-${b}.x)^2+(${a}.y-${b}.y)^2)`;
+	const simp = nerdamer(expr).simplify().toString();
 
-// 	const key = `len_${a}_${b}`;
-// 	dependencyMap[key] = {
-// 		type: 'length',
-// 		points: [a, b],
-// 		expr,
-// 		simplified: simp
-// 	};
-// }
+	const key = `len_${a}_${b}`;
+	dependencyMap[key] = {
+		type: 'length',
+		points: [a, b],
+		expr,
+		simplified: simp
+	};
+}
 
 // // --- Patch changes.record ---
 // const orig_record = changes.record;
