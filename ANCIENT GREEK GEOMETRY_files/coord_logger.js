@@ -377,6 +377,90 @@ function pointCoords(pid) {
 	return { x: Number(pt.x), y: Number(pt.y) };
 }
 
+// --- Symbolic simplification helpers (Nerdamer integration) ---
+function simplifyExprString(exprStr) {
+	// wrapper around global nerdamer; returns simplified string or original on error
+	try {
+		if (typeof nerdamer === 'undefined') {
+			console.warn('simplifyExprString: nerdamer not available');
+			return exprStr;
+		}
+		// nerdamer expects '^' for powers and sqrt(), etc. Use .expand()/.simplify() as needed
+		const res = nerdamer(exprStr).expand().simplify();
+		return res.toString();
+	} catch (err) {
+		console.error('simplifyExprString error for', exprStr, err);
+		return exprStr;
+	}
+}
+
+function simplifyPoint(pid, options = { force: false }) {
+	const info = pointDependencies[pid];
+	if (!info || !info.expr) return null;
+	if (info.simplified && !options.force) return info.simplified;
+	const sx = info.expr.x;
+	const sy = info.expr.y;
+	const sx_s = simplifyExprString(sx);
+	const sy_s = simplifyExprString(sy);
+	info.simplified = { x: sx_s, y: sy_s };
+	return info.simplified;
+}
+
+function lengthBetweenSymbolic(a, b) {
+	// return symbolic expression (unsimplified) for distance between a and b
+	const ax = _getSymCoord(a,'x'), ay = _getSymCoord(a,'y');
+	const bx = _getSymCoord(b,'x'), by = _getSymCoord(b,'y');
+	const dx = `((${ax}) - (${bx}))`;
+	const dy = `((${ay}) - (${by}))`;
+	const expr = `sqrt((${dx})^2 + (${dy})^2)`;
+	return expr;
+}
+
+function simplifyLengthBetween(a,b) {
+	const raw = lengthBetweenSymbolic(a,b);
+	return simplifyExprString(raw);
+}
+
+// utility: simplify all dependencies needed for a given object hash (incremental)
+function simplifyDependenciesForHash(hash) {
+	// find all points that list this hash as a parent (directly)
+	const toSimplify = [];
+	for (let pid of Object.keys(pointDependencies)) {
+		const info = pointDependencies[pid];
+		if (!info) continue;
+		if (Array.isArray(info.parents) && info.parents.includes(hash)) toSimplify.push(Number(pid));
+		else if (typeof info.desc === 'string' && info.desc.includes(hash)) toSimplify.push(Number(pid));
+	}
+	// simplify each
+	for (const pid of toSimplify) {
+		simplifyPoint(pid);
+	}
+	return toSimplify;
+}
+
+// Hook: optional helper to compute and cache lengths for dependencyMap entries
+function cacheLengthForHash(hash) {
+	const info = dependencyMap[hash];
+	if (!info) return null;
+	if (info.type === 'line' && Array.isArray(info.depends)) {
+		const [a,b] = info.depends;
+		const raw = lengthBetweenSymbolic(a,b);
+		const simple = simplifyExprString(raw);
+		info.length = { raw, simple };
+		return info.length;
+	}
+	if (info.type === 'arc' && Array.isArray(info.depends)) {
+		const [c,e] = info.depends;
+		const raw = lengthBetweenSymbolic(c,e); // radius expression
+		const simple = simplifyExprString(raw);
+		info.radius = { raw, simple };
+		return info.radius;
+	}
+	return null;
+}
+
+// end of appended helpers
+
 function dist(p, q) {
 	return Math.hypot(p.x - q.x, p.y - q.y);
 }
