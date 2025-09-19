@@ -598,6 +598,15 @@ changes.record = function(finished) {
                 //         console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
                 //     }
                 // }
+				if (obj.type === "line" || obj.type === "arc") {
+					const [a, b] = obj.depends;
+
+					// Collect dependencies only for these points
+					collectPointDependenciesRecursive(dep);
+
+					// Simplify them (optional here, or only when needed)
+					simplifyPointRecursive(dep);
+				}
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
@@ -658,6 +667,16 @@ changes.replay = function() {
 	for (let h of Object.keys(dependencyMap)) {
 		try { cacheLengthForHash(h); } catch(e) { console.debug('cacheLengthForHash error for', h, e); }
 	}
+	// log all important pointDependencies and simplify
+	for (let hash in dependencyMap) {
+		const dep = dependencyMap[hash];
+		if (dep.type === 'line' || dep.type === 'arc') {
+			// Collect symbolic dependencies first
+			collectPointDependenciesRecursive(dep);
+			// Then simplify only points built on
+			simplifyPointRecursive(dep);
+		}
+	}
 	addLog();
 	realmoveCount = modules?.test?.score?.() || 0;
 	return res;
@@ -666,17 +685,22 @@ changes.replay = function() {
 // ---- redo: capture before/after and register pendingObject (so record will resolve it) ----
 const orig_redo = changes.redo;
 changes.redo = function() {
-    const beforeIds = snapshotPointIds();
-    const r = orig_redo.apply(this, arguments);
-    const afterIds = snapshotPointIds();
-    // points newly created by redo (if any) — rather than immediate rely on changes.record,
-    // record a generic pending object to ensure record runs resolution
-    const newPids = [...afterIds].filter(x => !beforeIds.has(x)).map(Number);
-    if (newPids.length) {
-        // we don't always know a single hash here; but push a generic pending marker so record will collect them
-        pendingObjects.push({ hash: null, beforeIds: beforeIds, type: 'redo' });
+    // initialize pending cache
+    let redoCache = {};
+    
+	// changes.redo should call changes.record if (changes.seal == changes.length), i have no idea what changes.seal is, check for new entries in dependencyMap 
+    const result = orig_redo.apply(this, arguments);
+
+    for (let hash in dependencyMap) {
+        const dep = dependencyMap[hash];
+        if ((dep.type === 'line' || dep.type === 'arc') && !redoCache[hash]) {
+            collectPointDependenciesRecursive(dep);
+            simplifyPointRecursive(dep);
+            redoCache[hash] = true;
+        }
     }
-    return r;
+
+    return result;
 };
 
 const orig_undo = changes.undo;
