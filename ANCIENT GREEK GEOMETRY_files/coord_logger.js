@@ -150,6 +150,24 @@ function intersectArcArc(pid, a, b, c, d) {
 	return expr;
 }
 
+// Helper to collect matching pointDependencies for this object hash
+function collectIntersectionsForHash(targetHash) {
+	const intersections = [];
+	for (let pid of Object.keys(pointDependencies)) {
+		const info = pointDependencies[pid];
+		let matches = false;
+		if (info && Array.isArray(info.parents)) {
+			matches = info.parents.includes(targetHash);
+		} else if (info && typeof info.desc === 'string') {
+			matches = info.desc.includes(targetHash);
+		}
+		if (matches) {
+			intersections.push({ pid, info });
+		}
+	}
+	return intersections;
+}
+
 // formatting helper
 function formatChange(ch, actionId) {
 	if (!ch || !ch.type) return null;
@@ -160,24 +178,6 @@ function formatChange(ch, actionId) {
 	let b = ch.b ?? ch.obj?.b ?? '?';
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
 	const moveNum = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
-
-	// Helper to collect matching pointDependencies for this object hash
-	function collectIntersectionsForHash(targetHash) {
-		const intersections = [];
-		for (let pid of Object.keys(pointDependencies)) {
-			const info = pointDependencies[pid];
-			let matches = false;
-			if (info && Array.isArray(info.parents)) {
-				matches = info.parents.includes(targetHash);
-			} else if (info && typeof info.desc === 'string') {
-				matches = info.desc.includes(targetHash);
-			}
-			if (matches) {
-				intersections.push({ pid, info });
-			}
-		}
-		return intersections;
-	}
 
 	if (ch.type === 'arc') {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
