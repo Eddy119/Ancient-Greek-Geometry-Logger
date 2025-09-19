@@ -762,23 +762,20 @@ function addLog() {
 	}
 }
 
-function collectPointDependenciesRecursive(pid, visited = new Set()) {
-	if (visited.has(pid)) return;
-	visited.add(pid);
-
-	const point = window.points[pid];
-	if (!point) return;
-
-	// If this point already has dependencies recorded, skip
-	if (pointDependencies[pid]) return;
-
-	// Mark this point's parents as dependencies
-	pointDependencies[pid] = [...(point.parents || [])];
-
-	// Recurse down its parents
-	for (let parentPid of point.parents || []) {
-		collectPointDependenciesRecursive(parentPid, visited);
+function collectPointDependenciesRecursive(dep, visited = new Set()) {
+	if (!dep) return [];
+	const result = [];
+	for (const pid of dep.depends) {
+		if (!visited.has(pid)) {
+			visited.add(pid);
+			const subdep = dependencyMap[pid];
+			result.push(pid);
+			if (subdep) {
+				result.push(...collectPointDependenciesRecursive(subdep, visited));
+			}
+		}
 	}
+	return result;
 }
 
 // your helpers
@@ -790,16 +787,24 @@ function collectPointDependenciesRecursive(pid, visited = new Set()) {
 // 	}
 // }
 
-// function simplifyPointRecursive(pid) {
-// 	if (simplifiedPoints[pid]) return simplifiedPoints[pid];
+function simplifyPointRecursive(pid) {
+  const dep = dependencyMap[pid];
+  if (!dep) return; // missing entry, bail
 
-// 	const dep = pointDependencies[pid];
-// 	if (!dep) {console.debug("simplifyPointRecursive: no dep for", pid, "in pointDependencies"); return null;}
+  const subpoints = collectPointDependenciesRecursive(dep);
+  for (const spid of subpoints) {
+    simplifyPointRecursive(spid); // recurse
+  }
 
-// 	// Recursively simplify parents first
-// 	if (dep.depends) {
-// 		dep.depends.forEach(p => simplifyPointRecursive(p));
-// 	}
+  // Now try to simplify this point based on its type
+  if (dep.type === "line") {
+    const [a, b] = dep.depends;
+    if (points[a].x === points[b].x && points[a].y === points[b].y) {
+      // degenerate line: collapse or remove
+    }
+  }
+  // similar logic for arcs/circles
+}
 
 // 	// Build expression string for this point
 // 	let expr = describeIntersectionFromObjects(dep);
