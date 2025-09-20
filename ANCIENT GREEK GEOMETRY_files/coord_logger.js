@@ -513,12 +513,14 @@ function describeIntersectionFromObjects(pid, objects) {
 // ---- makeline / makearc: register pending object with a before snapshot ----
 const orig_makeline = window.makeline;
 window.makeline = function(p1, p2, spec) {
-    // snapshot before invoking engine
+    // snapshot before invoking engine (keep for pendingObjects diff)
     const beforeSet = snapshotPointIds();
 	const aId = (p1 && typeof p1 === 'object' && typeof p1.id !== 'undefined') ? Number(p1.id) : Number(p1);
 	const bId = (p2 && typeof p2 === 'object' && typeof p2.id !== 'undefined') ? Number(p2.id) : Number(p2);
 	const hash = `${aId}L${bId}`;
+	console.debug(`makeline: snapshot before has ${beforeSet.size} points`);
     const res = orig_makeline.apply(this, arguments);
+	console.debug(`makeline: created pending object ${hash}`);
     // register pending object — the engine will add points later in changes.record
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1.id), b: Number(p2.id) } });
     return res;
@@ -530,7 +532,9 @@ window.makearc = function(c, e, r, spec) {
 	const aId = (c && typeof c === 'object' && typeof c.id !== 'undefined') ? Number(c.id) : Number(c);
 	const bId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
 	const hash = `${aId}L${bId}`;
+	console.debug(`makearc: snapshot before has ${beforeSet.size} points`);
     const res = orig_makearc.apply(this, arguments);
+	console.debug(`makearc: created pending object ${hash}`);
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c.id), b: Number(e.id) } });
     return res;
 };
@@ -566,23 +570,27 @@ changes.record = function(finished) {
     if (pendingObjects.length) {
         // snapshot after engine finalized points
         const afterAll = snapshotPointIds();
+        console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
 
         // process each pending object (FIFO)
         for (const pend of pendingObjects) {
             try {
                 // compute new pids for this pending object
                 const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
+                console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 
                 // If none found (rare), we still attempt coordinate-based matching across all points added since the earliest before snapshot
                 if (newPids.length === 0) {
-                    // fallback: try to find any points added since smallest before snapshot among pendingObjects
+					// fallback: try to find any points added since smallest before snapshot among pendingObjects
                     // build a union of all beforeIds to get a global baseline
+                    console.debug('changes.record: no newPids found for', pend);
                     const unionBefore = new Set();
                     for (let p of pendingObjects) {
                         for (let id of p.beforeIds) unionBefore.add(id);
                     }
                     const candidates = [...afterAll].filter(x => !unionBefore.has(x));
-                    // we won't try to auto-match here, skip — usually previous logic suffices
+					// we won't try to auto-match here, skip — usually previous logic suffices
+                    console.debug('changes.record: fallback candidates since unionBefore:', candidates);
                 }
 
                 // build objects list including the newly-created object hash
@@ -593,6 +601,18 @@ changes.record = function(finished) {
                     console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects, ${objects}`);
 					console.debug("ch.a: ",pend.meta.a, " typeof ch.a: ", typeof pend.meta.a);
                     describeIntersectionFromObjects(Number(pid), objects);
+                    if (pointDependencies[pid]) {
+                        console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
+                        try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
+                    } else {
+                        console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
+                    }
+                }
+
+                // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
+                if (pend.hash) {
+                    try { const simplifiedList = simplifyDependenciesForHash(pend.hash); console.debug(`simplified deps for ${pend.hash}:`, simplifiedList); } catch(e){ console.debug('simplifyDependenciesForHash failed', e); }
+                    try { const cached = cacheLengthForHash(pend.hash); console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached); } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
                 }
             } catch (err) {
                 console.error('Error resolving pending object', pend, err);
@@ -609,7 +629,11 @@ changes.record = function(finished) {
         const objects = collectAllObjectsWith();
 		console.log("RECORD: pendingPids.length is ", pendingPids.length);
         for (const pid of pendingPids) {
+            console.debug('Record: resolving legacy pending pid', pid);
             describeIntersectionFromObjects(Number(pid), objects); // unneccesary now it seems, keep for now
+            if (pointDependencies[pid]) {
+                try { simplifyPoint(pid); console.debug(`Record: simplified legacy p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for legacy pid', pid, e); }
+            }
         }
         pendingPids = [];
     }
@@ -636,8 +660,15 @@ changes.replay = function() {
 		pendingPids.forEach(pid => {
 			console.debug(`Replay: resolving p${pid} against`, objects);
 			describeIntersectionFromObjects(pid, objects);
+			if (pointDependencies[pid]) {
+				try { simplifyPoint(pid); console.debug(`Replay: simplified p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for replay pid', pid, e); }
+			}
 		});
 		pendingPids = [];
+	}
+	// cache lengths/radii for all dependencyMap entries (best-effort)
+	for (let h of Object.keys(dependencyMap)) {
+		try { cacheLengthForHash(h); } catch(e) { console.debug('cacheLengthForHash error for', h, e); }
 	}
 	addLog();
 	realmoveCount = modules?.test?.score?.() || 0;
