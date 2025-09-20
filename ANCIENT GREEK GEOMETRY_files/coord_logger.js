@@ -607,6 +607,14 @@ changes.record = function(finished) {
 				const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
 				console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 				console.debug('changes.record: pendingObjects (before processing)=', pendingObjects);
+				
+				// compute a robust lookupHash from pend.hash or pend.meta
+				let lookupHash = pend.hash;
+				if ((!dependencyMap[lookupHash] || !dependencyMap[lookupHash].depends) &&
+					pend.meta && typeof pend.meta.a !== 'undefined' && typeof pend.meta.b !== 'undefined') {
+					lookupHash = `${pend.meta.a}${pend.type === 'arc' ? 'A' : 'L'}${pend.meta.b}`;
+					console.debug('changes.record: fallback computed lookupHash=', lookupHash);
+				}
 
 				// ensure the dependencyMap entry exists for this object so recursion from endpoints works
 				if (!dependencyMap[lookupHash]) {
