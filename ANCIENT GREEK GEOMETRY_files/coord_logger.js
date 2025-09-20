@@ -57,7 +57,7 @@ function addDependency(hash, info) {
 function addPointDependency(pid, desc, expr, parents = [], type = "intersection") {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
 	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid]}; // copy of parents array // ch = point in changes map, point = ptObj
-	if (pointDependencies[pid].type = "intersection") {
+	if (pointDependencies[pid].type === "intersection") {
 		pointDependencies[pid].parents = parents.slice();
 	}
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
