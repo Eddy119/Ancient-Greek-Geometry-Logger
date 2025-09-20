@@ -482,6 +482,7 @@ function pointOnArc(pid, centerId, edgeId, tol = 1e-6) {
 }
 
 function describeIntersectionFromObjects(pid, objects) {
+	console.debug("is it inputting garbage? ",objects);
 	if (!Array.isArray(objects) || objects.length < 2) return null;
 	for (let i = 0; i < objects.length; i++) {
 		for (let j = i + 1; j < objects.length; j++) {
@@ -514,7 +515,9 @@ const orig_makeline = window.makeline;
 window.makeline = function(p1, p2, spec) {
     // snapshot before invoking engine
     const beforeSet = snapshotPointIds();
-	const hash = `${String(p1)}L${String(p2)}`;
+	const aId = (p1 && typeof p1 === 'object' && typeof p1.id !== 'undefined') ? Number(p1.id) : Number(p1);
+	const bId = (p2 && typeof p2 === 'object' && typeof p2.id !== 'undefined') ? Number(p2.id) : Number(p2);
+	const hash = `${aId}L${bId}`;
     const res = orig_makeline.apply(this, arguments);
     // register pending object — the engine will add points later in changes.record
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
@@ -524,7 +527,9 @@ window.makeline = function(p1, p2, spec) {
 const orig_makearc = window.makearc;
 window.makearc = function(c, e, r, spec) {
     const beforeSet = snapshotPointIds();
-	const hash = `${String(c)}A${String(e)}`;
+	const aId = (c && typeof c === 'object' && typeof c.id !== 'undefined') ? Number(c.id) : Number(c);
+	const bId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
+	const hash = `${aId}L${bId}`;
     const res = orig_makearc.apply(this, arguments);
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
     return res;
