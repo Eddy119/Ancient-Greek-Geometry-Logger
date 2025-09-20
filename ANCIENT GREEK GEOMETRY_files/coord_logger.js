@@ -186,7 +186,14 @@ function intersectLineLine(pid, a, b, c, d) {
 	// collinearity check
 	if (areCollinearPoints(a, b, c, d)) {
 		const colBase = findCollinearBaseLine(`${a}${b}`, a, b) || `${c}${d}`;
-		addPointDependency(pid, [colBase], null, "_", "collinear");
+		console.log("collinear pointDependencies[b] :",pointDependencies[b]);
+		if (b != 0 && b != 1) {
+			addPointDependency(pid, [colBase],pointDependencies[b].expr, "_", "collinear");
+		} else if (a != 0 && a != 1){
+			addPointDependency(pid, [colBase],pointDependencies[a].expr, "_", "collinear");
+		} else {
+			console.log("this can't exist??")
+			}
 		return null;
 	}
 	
@@ -431,15 +438,15 @@ function simplifyExprString(exprStr) {
 }
 
 function simplifyPoint(pid, options = { force: false }) {
-	const info = pointDependencies[pid];
-	if (!info || !info.expr) return null;
-	if (info.simplified && !options.force) return info.simplified;
-	const sx = info.expr.x;
-	const sy = info.expr.y;
-	const sx_s = simplifyExprString(sx);
-	const sy_s = simplifyExprString(sy);
-	info.simplified = { x: sx_s, y: sy_s };
-	return info.simplified;
+	// const info = pointDependencies[pid];
+	// if (!info || !info.expr) return null;
+	// if (info.simplified && !options.force) return info.simplified;
+	// const sx = info.expr.x;
+	// const sy = info.expr.y;
+	// const sx_s = simplifyExprString(sx);
+	// const sy_s = simplifyExprString(sy);
+	// info.simplified = { x: sx_s, y: sy_s };
+	// return info.simplified;
 }
 
 function lengthBetweenSymbolic(a, b) {
