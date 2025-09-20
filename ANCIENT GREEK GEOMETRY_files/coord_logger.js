@@ -559,86 +559,72 @@ function findPidByCoordsNearby(x, y, candidates, tol = 1e-5) {
 // ---- changes.record flush: compute afterSet, resolve pendingObjects by diffing against their beforeIds ----
 const orig_record = changes.record;
 changes.record = function(finished) {
-    const r = orig_record.apply(this, arguments);
+	const r = orig_record.apply(this, arguments);
 
-    if (pendingObjects.length) {
-        // snapshot after engine finalized points
-        const afterAll = snapshotPointIds();
-        console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
+	if (pendingObjects && pendingObjects.length) {
+		// snapshot after engine finalized points
+		const afterAll = snapshotPointIds();
+		console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
 
-        // process each pending object (FIFO)
-        for (const pend of pendingObjects) {
-            try {
-                // compute new pids for this pending object
-                const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
-                console.debug(`pending ${pend.hash} -> newPids:`, newPids);
+		for (const pend of pendingObjects) {
+			try {
+				const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
+				console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 
-                // If none found (rare), we still attempt coordinate-based matching across all points added since the earliest before snapshot
-                if (newPids.length === 0) {
-                    console.debug('changes.record: no newPids found for', pend);
-                    const unionBefore = new Set();
-                    for (let p of pendingObjects) {
-                        for (let id of p.beforeIds) unionBefore.add(id);
-                    }
-                    const candidates = [...afterAll].filter(x => !unionBefore.has(x));
-                    console.debug('changes.record: fallback candidates since unionBefore:', candidates);
-                }
-
-                // build objects list including the newly-created object hash
-                const objects = collectAllObjectsWith(pend.hash);
-
-                // DON'T call describeIntersectionFromObjects for each newly created pid
-                // for (const pid of newPids) {
-                //     console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects`);
-                //     describeIntersectionFromObjects(Number(pid), objects);
-                //     if (pointDependencies[pid]) {
-                //         console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
-                //         try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
-                //     } else {
-                //         console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
-                //     }
-                // }
-				if (obj.type === "line" || obj.type === "arc") {
-					const [a, b] = obj.depends;
-
-					// Collect dependencies only for these points
-					collectPointDependenciesRecursive(a,b); // ugh idk do we input the hash? or the point ids in the hash?
-
-					// Simplify them (optional here, or only when needed)
-					simplifyPointRecursive(a,b); // same here, what's our input
+				// grab the dep object
+				const dep = dependencyMap[pend.hash];
+				if (dep && (dep.type === "line" || dep.type === "arc")) {
+					const [a, b] = dep.depends;
+					// collect + simplify for both endpoints
+					collectPointDependenciesRecursive(a);
+					simplifyPointRecursive(a);
+					collectPointDependenciesRecursive(b);
+					simplifyPointRecursive(b);
 				}
 
-                // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
-                if (pend.hash) {
-                    try { const simplifiedList = simplifyDependenciesForHash(pend.hash); console.debug(`simplified deps for ${pend.hash}:`, simplifiedList); } catch(e){ console.debug('simplifyDependenciesForHash failed', e); }
-                    try { const cached = cacheLengthForHash(pend.hash); console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached); } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
-                }
-            } catch (err) {
-                console.error('Error resolving pending object', pend, err);
-            }
-        }
+				// simplify/calc length for this hash itself
+				if (pend.hash) {
+					try {
+						const simplifiedList = simplifyDependenciesForHash(pend.hash);
+						console.debug(`simplified deps for ${pend.hash}:`, simplifiedList);
+					} catch (e) {
+						console.debug("simplifyDependenciesForHash failed", e);
+					}
+					try {
+						const cached = cacheLengthForHash(pend.hash);
+						console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached);
+					} catch (e) {
+						console.debug("cacheLengthForHash failed for", pend.hash, e);
+					}
+				}
+			} catch (err) {
+				console.error("Error resolving pending object", pend, err);
+			}
+		}
 
-        // clear pendingObjects after processing
-        pendingObjects = [];
-    }
+		pendingObjects = [];
+	}
 
-    // keep existing pendingPids compatibility (if you still use it elsewhere)
-    if (Array.isArray(pendingPids) && pendingPids.length) {
-        // resolve any plain pendingPids (older code paths) using full objects list
-        const objects = collectAllObjectsWith();
-        for (const pid of pendingPids) {
-            console.debug('Record: resolving legacy pending pid', pid);
-            describeIntersectionFromObjects(Number(pid), objects);
-            if (pointDependencies[pid]) {
-                try { simplifyPoint(pid); console.debug(`Record: simplified legacy p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for legacy pid', pid, e); }
-            }
-        }
-        pendingPids = [];
-    }
+	// legacy pendingPids path
+	if (Array.isArray(pendingPids) && pendingPids.length) {
+		const objects = collectAllObjectsWith();
+		for (const pid of pendingPids) {
+			console.debug("Record: resolving legacy pending pid", pid);
+			describeIntersectionFromObjects(Number(pid), objects);
+			if (pointDependencies[pid]) {
+				try {
+					simplifyPoint(pid);
+					console.debug(`Record: simplified legacy p${pid}`, pointDependencies[pid].simplified);
+				} catch (e) {
+					console.debug("simplifyPoint failed for legacy pid", pid, e);
+				}
+			}
+		}
+		pendingPids = [];
+	}
 
-    // rebuild log now that dependencies added
-    addLog();
-    return r;
+	addLog();
+	return r;
 };
 
 const orig_replay = changes.replay;
@@ -646,61 +632,58 @@ changes.replay = function() {
 	clearLog();
 	lastProcessedJump = 0;
 	const res = orig_replay.apply(this, arguments);
+
 	// flush any pending (from replay)
 	if (pendingPids.length) {
 		let objects = [];
 		for (let k = 0; k < changes.length; k++) {
 			const ch = changes[k];
-			if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-			if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
+			if (ch?.type === 'arc' || ch?.type === 'realline') {
+				objects.push(ch);
+			}
 		}
-		// pendingPids.forEach(pid => {
-		// 	console.debug(`Replay: resolving p${pid} against`, objects);
-		// 	describeIntersectionFromObjects(pid, objects);
-		// 	if (pointDependencies[pid]) {
-		// 		try { simplifyPoint(pid); console.debug(`Replay: simplified p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for replay pid', pid, e); }
-		// 	}
-		// });
+		// process endpoints for each replayed object
+		for (let obj of objects) {
+			const [a, b] = [obj.a, obj.b];
+			collectPointDependenciesRecursive(a);
+			simplifyPointRecursive(a);
+			collectPointDependenciesRecursive(b);
+			simplifyPointRecursive(b);
+		}
 		pendingPids = [];
 	}
+
 	// cache lengths/radii for all dependencyMap entries (best-effort)
 	for (let h of Object.keys(dependencyMap)) {
-		try { cacheLengthForHash(h); } catch(e) { console.debug('cacheLengthForHash error for', h, e); }
+		try { cacheLengthForHash(h); } 
+		catch(e) { console.debug('cacheLengthForHash error for', h, e); }
 	}
-	// log all important pointDependencies and simplify
-	for (let hash in dependencyMap) {
-		const dep = dependencyMap[hash];
-		if (dep.type === 'line' || dep.type === 'arc') {
-			// Collect symbolic dependencies first
-			collectPointDependenciesRecursive(dep); // we need to either input the hash or point ids of the hash
-			// Then simplify only points built on
-			simplifyPointRecursive(dep); // ditto
-		}
-	}
+
 	addLog();
 	realmoveCount = modules?.test?.score?.() || 0;
 	return res;
 };
 
+
 // ---- redo: capture before/after and register pendingObject (so record will resolve it) ----
 const orig_redo = changes.redo;
-changes.redo = function() {
-    // initialize pending cache
-    let redoCache = {};
-    
-	// changes.redo should call changes.record if (changes.seal == changes.length), i have no idea what changes.seal is, check for new entries in dependencyMap 
-    const result = orig_redo.apply(this, arguments);
+changes.redo = function () {
+orig_redo.apply(this, arguments);
 
-    for (let hash in dependencyMap) {
-        const dep = dependencyMap[hash];
-        if ((dep.type === 'line' || dep.type === 'arc') && !redoCache[hash]) {
-            collectPointDependenciesRecursive(dep); // we need to either input the hash or point ids of the hash
-            simplifyPointRecursive(dep); // ditto
-            redoCache[hash] = true;
-        }
-    }
 
-    return result;
+// after redo, handle new objects similarly
+if (pendingObjects && pendingObjects.length) {
+pendingObjects.forEach((obj) => {
+if (obj.type === "line" || obj.type === "arc") {
+const [a, b] = obj.points;
+collectPointDependenciesRecursive(a);
+simplifyPointRecursive(a);
+collectPointDependenciesRecursive(b);
+simplifyPointRecursive(b);
+}
+});
+pendingObjects = [];
+}
 };
 
 const orig_undo = changes.undo;
@@ -762,20 +745,29 @@ function addLog() {
 	}
 }
 
-function collectPointDependenciesRecursive(pid, visited = new Set()) { // we need to decide if we want to input the hash itself or point ids of the hash
-	if (!dep) return [];
-	const result = [];
-	for (const pid of dep.depends) {
-		if (!visited.has(pid)) {
-			visited.add(pid); // idk where it should but it should call describeIntersectionFromObjects(pid or pids of hash) somewhere
-			const subdep = dependencyMap[pid];
-			result.push(pid);
-			if (subdep) {
-				result.push(...collectPointDependenciesRecursive(subdep, visited));
-			}
-		}
-	}
-	return result;
+// --- Recursive functions ---
+function collectPointDependenciesRecursive(pid, visited = new Set()) {
+if (visited.has(pid)) return;
+visited.add(pid);
+
+
+const dep = pointDependencies[pid];
+if (!dep || !dep.parents) return;
+
+
+dep.parents.forEach((parentHash) => {
+if (!dependencyMap[parentHash]) {
+// ensure dependencyMap entry exists
+describeIntersectionFromObjects(parentHash);
+}
+// now recurse into parent point IDs
+const parentDep = dependencyMap[parentHash];
+if (parentDep && parentDep.depends) {
+parentDep.depends.forEach((p) => {
+collectPointDependenciesRecursive(p, visited);
+});
+}
+});
 }
 
 // your helpers
@@ -787,23 +779,41 @@ function collectPointDependenciesRecursive(pid, visited = new Set()) { // we nee
 // 	}
 // }
 
-function simplifyPointRecursive(pid) { // we need to decide if we want to input the hash or point ids of the hash
-  const dep = dependencyMap[pid];
-  if (!dep) return; // missing entry, bail
+function simplifyPointRecursive(pid, visited = new Set()) {
+if (visited.has(pid)) return;
+visited.add(pid);
 
-  const subpoints = collectPointDependenciesRecursive(dep); // might not be needed if both called somewhere else
-  for (const spid of subpoints) {
-    simplifyPointRecursive(spid); // recurse
-  }
 
-  // Now try to simplify this point based on its type
-  if (dep.type === "line") {
-    const [a, b] = dep.depends;
-    if (points[a].x === points[b].x && points[a].y === points[b].y) {
-      // degenerate line: collapse or remove
-    }
-  }
-  // similar logic for arcs/circles
+collectPointDependenciesRecursive(pid);
+
+
+const dep = pointDependencies[pid];
+if (!dep || !dep.expr) return;
+
+
+try {
+// only simplify if not already simplified
+if (!dep.simplified) {
+dep.simplified = {
+x: nerdamer("simplify(" + dep.expr.x.toString() + ")").toString(),
+y: nerdamer("simplify(" + dep.expr.y.toString() + ")").toString(),
+};
+console.log("Simplified point", pid, dep.simplified);
+}
+} catch (e) {
+console.warn("Failed to simplify point", pid, e);
+}
+
+
+// recurse into parents
+if (dep.parents) {
+dep.parents.forEach((parentHash) => {
+const parentDep = dependencyMap[parentHash];
+if (parentDep && parentDep.depends) {
+parentDep.depends.forEach((p) => simplifyPointRecursive(p, visited));
+}
+});
+}
 }
 
 // 	// Build expression string for this point
