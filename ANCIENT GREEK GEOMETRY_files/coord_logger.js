@@ -520,7 +520,7 @@ window.makeline = function(p1, p2, spec) {
 	const hash = `${aId}L${bId}`;
     const res = orig_makeline.apply(this, arguments);
     // register pending object — the engine will add points later in changes.record
-    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1.id), b: Number(p2.id) } });
     return res;
 };
 
@@ -531,7 +531,7 @@ window.makearc = function(c, e, r, spec) {
 	const bId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
 	const hash = `${aId}L${bId}`;
     const res = orig_makearc.apply(this, arguments);
-    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c.id), b: Number(e.id) } });
     return res;
 };
 
@@ -591,7 +591,7 @@ changes.record = function(finished) {
                 // call describeIntersectionFromObjects for each newly created pid
                 for (const pid of newPids) {
                     console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects, ${objects}`);
-					console.debug("ch.a: ",ch.a, " typeof ch.a: ", typeof ch.a);
+					console.debug("ch.a: ",pend.meta.a, " typeof ch.a: ", typeof pend.meta.a);
                     describeIntersectionFromObjects(Number(pid), objects);
                 }
             } catch (err) {
@@ -607,8 +607,9 @@ changes.record = function(finished) {
     if (Array.isArray(pendingPids) && pendingPids.length) {
         // resolve any plain pendingPids (older code paths) using full objects list
         const objects = collectAllObjectsWith();
+		console.log("RECORD: pendingPids.length is ", pendingPids.length);
         for (const pid of pendingPids) {
-            describeIntersectionFromObjects(Number(pid), objects);
+            describeIntersectionFromObjects(Number(pid), objects); // unneccesary now it seems, keep for now
         }
         pendingPids = [];
     }
@@ -624,7 +625,7 @@ changes.replay = function() {
 	lastProcessedJump = 0;
 	const res = orig_replay.apply(this, arguments);
 	// flush any pending (from replay)
-	console.log("pendingPids.length should always be 0, but is ", pendingPids.length);
+	console.log("REPLAY: pendingPids.length should always be 0, but is ", pendingPids.length);
 	if (pendingPids.length) {
 		let objects = [];
 		for (let k = 0; k < changes.length; k++) {
