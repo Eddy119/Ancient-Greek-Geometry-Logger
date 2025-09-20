@@ -54,15 +54,24 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr, parents = []) {
+function addPointDependency(pid, desc, expr, parents = [], type = "intersection") {
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
-	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid], parents: parents.slice() }; // copy of parents array // ch = point in changes map, point = ptObj
+	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid]}; // copy of parents array // ch = point in changes map, point = ptObj
+	if (pointDependencies[pid].type = "intersection") {
+		pointDependencies[pid].parents = parents.slice();
+	}
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
 	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
 	window._jumpPointMap[jIndex].add(String(pid));
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
+	}
+	if (!pointDependencies[pid]) pointDependencies[pid] = {};
+	if (pointDependencies[pid].type = "collinear") {
+		pointDependencies[pid].parents = new Set(parents);
+		pointDependencies[pid].type = type;
+		pointDependencies[pid].desc = `${type} of ${[...parents].join(", ")}`;
 	}
 	addChangesToPointDependency(pid);
 }
@@ -154,7 +163,34 @@ function _getSymCoord(id, coord) {
 	return `p${id}${coord}`;
 }
 
+// numeric test
+function areCollinearPoints(a, b, c, d) {
+	const A = pointCoords(a), B = pointCoords(b), C = pointCoords(c), D = pointCoords(d);
+	const area1 = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x);
+	const area2 = (B.x - A.x) * (D.y - A.y) - (B.y - A.y) * (D.x - A.x);
+	return Math.abs(area1) < 1e-6 && Math.abs(area2) < 1e-6;
+}
+
+function findCollinearBaseLine(hash, a, b) {
+	// Try to find any existing line that shares collinearity
+	for (let [otherHash, other] of Object.entries(dependencyMap)) {
+		if (otherHash === hash) continue;
+		if (other.type !== 'line' || !other.depends || other.depends.length !== 2) continue;
+		const [c, d] = other.depends;
+		if (areCollinearPoints(a, b, c, d)) return otherHash;
+	}
+	return null;
+}
+
 function intersectLineLine(pid, a, b, c, d) {
+	// collinearity check
+	if (areCollinearPoints(a, b, c, d)) {
+		const colBase = findCollinearBaseLine(`${a}${b}`, a, b) || `${c}${d}`;
+		addPointDependency(pid, [colBase], null, "_", "collinear");
+		return null;
+	}
+	
+	// … existing intersection math …
 	// build symbolic formula for intersection of line AB and CD using determinant formula
 	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
 	const x1 = _getSymCoord(a,'x'), y1 = _getSymCoord(a,'y');
