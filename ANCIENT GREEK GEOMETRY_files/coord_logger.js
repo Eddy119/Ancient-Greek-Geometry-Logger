@@ -776,20 +776,45 @@ function addLog() {
 
 // --- Recursive functions ---
 function collectPointDependenciesRecursive(pid, visited = new Set()) {
-	if (visited.has(pid)) { console.debug('collectPointDependenciesRecursive already visited', pid); return;}
+	if (visited.has(pid)) {
+		console.debug('collectPointDependenciesRecursive already visited', pid);
+		return;
+	}
 	visited.add(pid);
 
+	// Ensure entry exists
+	if (!pointDependencies[pid]) {
+		pointDependencies[pid] = { parents: new Set() };
+	}
 
 	const dep = pointDependencies[pid];
-	if (!dep || !dep.parents) { console.debug('collectPointDependenciesRecursive no parents', pid); return; } // return;
-	console.log('collectPointDependenciesRecursive', pointDependencies[pid],'pid:', pid, 'parents:', pid, dep.parents);
 
-	dep.parents.forEach((parentHash) => {
-		if (!dependencyMap[parentHash]) {
-			// ensure dependencyMap entry exists
-			describeIntersectionFromObjects(parentHash);
+	// If no parents recorded yet, try to backfill from dependencyMap
+	if (!dep.parents || dep.parents.size === 0) {
+		// Find any object that produced this pid
+		for (let [hash, obj] of Object.entries(dependencyMap)) {
+			if (obj.depends && obj.depends.includes(pid)) {
+				if (!dep.parents) dep.parents = new Set();
+				dep.parents.add(hash);
+				describeIntersectionFromObjects(pid, dep.parents);
+			}
 		}
-		// now recurse into parent point IDs
+	}
+
+	// Base case: if pid is Adam (0) or Eve (1), stop
+	if (pid === "0" || pid === "1" || pid === 0 || pid === 1) {
+		console.debug('collectPointDependenciesRecursive reached root', pid);
+		return;
+	}
+
+	// If still no parents, bail (free point or not yet linked)
+	if (!dep.parents || dep.parents.size === 0) {
+		console.debug('collectPointDependenciesRecursive no parents for', pid);
+		return;
+	}
+
+	// Recurse into parent dependencies
+	dep.parents.forEach((parentHash) => {
 		const parentDep = dependencyMap[parentHash];
 		if (parentDep && parentDep.depends) {
 			parentDep.depends.forEach((p) => {
