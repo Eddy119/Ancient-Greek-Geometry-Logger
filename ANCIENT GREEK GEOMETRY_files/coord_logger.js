@@ -770,15 +770,6 @@ collectPointDependenciesRecursive(p, visited);
 });
 }
 
-// your helpers
-// // --- New helpers ---
-// function ensurePointDependency(pid, descObj) {
-// 	if (!pointDependencies[pid]) {
-// 		pointDependencies[pid] = descObj;
-// 		simplifyPointRecursive(pid);
-// 	}
-// }
-
 function simplifyPointRecursive(pid, visited = new Set()) {
 if (visited.has(pid)) return;
 visited.add(pid);
@@ -816,15 +807,6 @@ parentDep.depends.forEach((p) => simplifyPointRecursive(p, visited));
 }
 }
 
-// 	// Build expression string for this point
-// 	let expr = describeIntersectionFromObjects(dep);
-// 	if (expr) {
-// 		let simp = nerdamer(expr).simplify().toString();
-// 		simplifiedPoints[pid] = simp;
-// 	}
-// 	return simplifiedPoints[pid];
-// }
-
 function addLengthDependency(a, b) {
 	const expr = `sqrt((${a}.x-${b}.x)^2+(${a}.y-${b}.y)^2)`;
 	const simp = nerdamer(expr).simplify().toString();
@@ -837,40 +819,3 @@ function addLengthDependency(a, b) {
 		simplified: simp
 	};
 }
-
-// // --- Patch changes.record ---
-// const orig_record = changes.record;
-// changes.record = function(action, obj) {
-// 	const res = orig_record.apply(this, arguments);
-
-// 	if (obj && (obj.type === 'line' || obj.type === 'arc')) {
-// 		const [a, b] = obj.depends;
-// 		const descObj = describeIntersectionFromObjects(obj);
-
-// 		// Ensure dependencies and simplifications
-// 		ensurePointDependency(a, descObj);
-// 		ensurePointDependency(b, descObj);
-
-// 		// Add length/radius
-// 		addLengthDependency(a, b);
-// 	}
-// 	return res;
-// };
-
-// // --- Patch changes.replay ---
-// const orig_replay = changes.replay;
-// changes.replay = function() {
-// 	const res = orig_replay.apply(this, arguments);
-
-// 	for (let hash in dependencyMap) {
-// 		const dep = dependencyMap[hash];
-// 		if (dep.type === 'line' || dep.type === 'arc') {
-// 			const [a, b] = dep.depends;
-// 			const descObj = describeIntersectionFromObjects(dep);
-// 			ensurePointDependency(a, descObj);
-// 			ensurePointDependency(b, descObj);
-// 			addLengthDependency(a, b);
-// 		}
-// 	}
-// 	return res;
-// };
