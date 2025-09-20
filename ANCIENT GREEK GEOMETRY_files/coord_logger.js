@@ -441,7 +441,7 @@ function simplifyDependenciesForHash(hash) {
 // Hook: optional helper to compute and cache lengths for dependencyMap entries
 function cacheLengthForHash(hash) {
 	const info = dependencyMap[hash];
-	if (!info) return null;
+	if (!info) { console.debug('cacheLengthForHash: no info for', hash); return null} // cacheLengthForHash doesn't work, doesn't matter for now
 	if (info.type === 'line' && Array.isArray(info.depends)) {
 		const [a,b] = info.depends;
 		const raw = lengthBetweenSymbolic(a,b);
