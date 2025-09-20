@@ -800,7 +800,7 @@ function collectPointDependenciesRecursive(pid, visited = new Set()) {
 }
 
 function simplifyPointRecursive(pid, visited = new Set()) {
-	if (visited.has(pid)) return;
+	if (visited.has(pid)) { console.debug('simplifyPointRecursive already visited', pid); return; } // return;
 	visited.add(pid);
 
 
@@ -808,7 +808,7 @@ function simplifyPointRecursive(pid, visited = new Set()) {
 
 
 	const dep = pointDependencies[pid];
-	if (!dep || !dep.expr) return;
+	if (!dep || !dep.expr) { console.debug('simplifyPointRecursive no expr', pid); return; } // return;
 
 
 	try {
