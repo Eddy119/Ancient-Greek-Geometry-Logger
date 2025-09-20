@@ -514,9 +514,9 @@ const orig_makeline = window.makeline;
 window.makeline = function(p1, p2, spec) {
     // snapshot before invoking engine
     const beforeSet = snapshotPointIds();
+	const hash = `${String(p1)}L${String(p2)}`;
     const res = orig_makeline.apply(this, arguments);
     // register pending object — the engine will add points later in changes.record
-    const hash = `${p1}L${p2}`;
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
     return res;
 };
@@ -524,8 +524,8 @@ window.makeline = function(p1, p2, spec) {
 const orig_makearc = window.makearc;
 window.makearc = function(c, e, r, spec) {
     const beforeSet = snapshotPointIds();
+	const hash = `${String(c)}A${String(e)}`;
     const res = orig_makearc.apply(this, arguments);
-    const hash = `${c}A${e}`;
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
     return res;
 };
@@ -535,8 +535,8 @@ function collectAllObjectsWith(hashToPrepend) {
     const objects = [];
     for (let k = 0; k < changes.length; k++) {
         const ch = changes[k];
-        if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-        if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
+        if (ch?.type === 'arc') objects.push(`${String(ch.a)}A${String(ch.b)}`);
+        if (ch?.type === 'realline') objects.push(`${String(ch.a)}L${String(ch.b)}`);
     }
     // put the newly-created object first to help pair matching
     if (hashToPrepend && !objects.includes(hashToPrepend)) objects.unshift(hashToPrepend);
@@ -582,10 +582,11 @@ changes.record = function(finished) {
 
                 // build objects list including the newly-created object hash
                 const objects = collectAllObjectsWith(pend.hash);
-
+				console.debug("pendingObjects: ",pendingObjects,"pend: ",pend," pend.hash: ", pend.hash);// more debug
                 // call describeIntersectionFromObjects for each newly created pid
                 for (const pid of newPids) {
-                    console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects`);
+                    console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects, ${objects}`);
+					console.debug("ch.a: ",ch.a, " typeof ch.a: ", typeof ch.a);
                     describeIntersectionFromObjects(Number(pid), objects);
                 }
             } catch (err) {
@@ -618,6 +619,7 @@ changes.replay = function() {
 	lastProcessedJump = 0;
 	const res = orig_replay.apply(this, arguments);
 	// flush any pending (from replay)
+	console.log("pendingPids.length should always be 0, but is ", pendingPids.length);
 	if (pendingPids.length) {
 		let objects = [];
 		for (let k = 0; k < changes.length; k++) {
