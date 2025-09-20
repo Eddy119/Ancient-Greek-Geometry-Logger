@@ -55,7 +55,7 @@ function addDependency(hash, info) {
 }
 
 function addPointDependency(pid, desc, expr, parents = []) {
-	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
+	console.log(`Adding point dependency for p${pid}: ${desc}`, expr, new Error().stack);
 	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid], parents: parents.slice() }; // copy of parents array // ch = point in changes map, point = ptObj
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
@@ -482,6 +482,7 @@ function pointOnArc(pid, centerId, edgeId, tol = 1e-6) {
 }
 
 function describeIntersectionFromObjects(pid, objects) {
+	console.debug('describeIntersectionFromObjects called for pid=', pid, 'objects=', objects);
 	if (!Array.isArray(objects) || objects.length < 2) return null;
 	for (let i = 0; i < objects.length; i++) {
 		for (let j = i + 1; j < objects.length; j++) {
@@ -493,6 +494,7 @@ function describeIntersectionFromObjects(pid, objects) {
 			const ok1 = (type1 === 'line' ? pointOnLine(pid, a1, b1) : pointOnArc(pid, a1, b1));
 			const ok2 = (type2 === 'line' ? pointOnLine(pid, a2, b2) : pointOnArc(pid, a2, b2));
 			if (ok1 && ok2) {
+				console.debug(`describe: matched pid ${pid} as intersection of ${h1} & ${h2}, Intersecting ${type1} ${a1} ${b1} with ${type2} ${a2} ${b2}`);
 				let expr = null;
 				if (type1 === 'line' && type2 === 'line') expr = intersectLineLine(pid, a1, b1, a2, b2);
 				else if (type1 === 'arc' && type2 === 'line') expr = intersectArcLine(pid, a1, b1, a2, b2);
@@ -519,6 +521,7 @@ window.makeline = function(p1, p2, spec) {
     const hash = `${p1}L${p2}`;
     console.debug(`makeline: created pending object ${hash}`);
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
+	console.debug('makeline pushed pendingObject', pendingObjects[pendingObjects.length-1]);
     return res;
 };
 
@@ -530,6 +533,7 @@ window.makearc = function(c, e, r, spec) {
     const hash = `${c}A${e}`;
     console.debug(`makearc: created pending object ${hash}`);
     pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
+	console.debug('makearc pushed pendingObject', pendingObjects[pendingObjects.length-1]);
     return res;
 };
 
@@ -570,6 +574,7 @@ changes.record = function(finished) {
 			try {
 				const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
 				console.debug(`pending ${pend.hash} -> newPids:`, newPids);
+				console.debug('changes.record: pendingObjects (before processing)=', pendingObjects);
 
 				// grab the dep object
 				const dep = dependencyMap[pend.hash];
@@ -597,6 +602,7 @@ changes.record = function(finished) {
 						console.debug("cacheLengthForHash failed for", pend.hash, e);
 					}
 				}
+				console.debug('changes.record: after processing pend:', pend.hash, 'newPids=', newPids);
 			} catch (err) {
 				console.error("Error resolving pending object", pend, err);
 			}
@@ -668,22 +674,22 @@ changes.replay = function() {
 // ---- redo: capture before/after and register pendingObject (so record will resolve it) ----
 const orig_redo = changes.redo;
 changes.redo = function () {
-orig_redo.apply(this, arguments);
+	orig_redo.apply(this, arguments);
 
 
-// after redo, handle new objects similarly
-if (pendingObjects && pendingObjects.length) {
-pendingObjects.forEach((obj) => {
-if (obj.type === "line" || obj.type === "arc") {
-const [a, b] = obj.points;
-collectPointDependenciesRecursive(a);
-simplifyPointRecursive(a);
-collectPointDependenciesRecursive(b);
-simplifyPointRecursive(b);
-}
-});
-pendingObjects = [];
-}
+	// after redo, handle new objects similarly
+	if (pendingObjects && pendingObjects.length) {
+		pendingObjects.forEach((obj) => {
+			if (obj.type === "line" || obj.type === "arc") {
+				const [a, b] = obj.points;
+				collectPointDependenciesRecursive(a);
+				simplifyPointRecursive(a);
+				collectPointDependenciesRecursive(b);
+				simplifyPointRecursive(b);
+			}
+		});
+		pendingObjects = [];
+	}
 };
 
 const orig_undo = changes.undo;
@@ -747,64 +753,64 @@ function addLog() {
 
 // --- Recursive functions ---
 function collectPointDependenciesRecursive(pid, visited = new Set()) {
-if (visited.has(pid)) return;
-visited.add(pid);
+	if (visited.has(pid)) return;
+	visited.add(pid);
 
 
-const dep = pointDependencies[pid];
-if (!dep || !dep.parents) return;
+	const dep = pointDependencies[pid];
+	if (!dep || !dep.parents) return;
+	console.log("collectPointDependenciesRecursive", pointDependencies[pid],"pid:", pid, "parents:", pid, dep.parents);
 
-
-dep.parents.forEach((parentHash) => {
-if (!dependencyMap[parentHash]) {
-// ensure dependencyMap entry exists
-describeIntersectionFromObjects(parentHash);
-}
-// now recurse into parent point IDs
-const parentDep = dependencyMap[parentHash];
-if (parentDep && parentDep.depends) {
-parentDep.depends.forEach((p) => {
-collectPointDependenciesRecursive(p, visited);
-});
-}
-});
+	dep.parents.forEach((parentHash) => {
+		if (!dependencyMap[parentHash]) {
+			// ensure dependencyMap entry exists
+			describeIntersectionFromObjects(parentHash);
+		}
+		// now recurse into parent point IDs
+		const parentDep = dependencyMap[parentHash];
+		if (parentDep && parentDep.depends) {
+			parentDep.depends.forEach((p) => {
+				collectPointDependenciesRecursive(p, visited);
+			});
+		}
+	});
 }
 
 function simplifyPointRecursive(pid, visited = new Set()) {
-if (visited.has(pid)) return;
-visited.add(pid);
+	if (visited.has(pid)) return;
+	visited.add(pid);
 
 
-collectPointDependenciesRecursive(pid);
+	collectPointDependenciesRecursive(pid);
 
 
-const dep = pointDependencies[pid];
-if (!dep || !dep.expr) return;
+	const dep = pointDependencies[pid];
+	if (!dep || !dep.expr) return;
 
 
-try {
-// only simplify if not already simplified
-if (!dep.simplified) {
-dep.simplified = {
-x: nerdamer("simplify(" + dep.expr.x.toString() + ")").toString(),
-y: nerdamer("simplify(" + dep.expr.y.toString() + ")").toString(),
-};
-console.log("Simplified point", pid, dep.simplified);
-}
-} catch (e) {
-console.warn("Failed to simplify point", pid, e);
-}
+	try {
+		// only simplify if not already simplified
+		if (!dep.simplified) {
+			dep.simplified = {
+				x: nerdamer("simplify(" + dep.expr.x.toString() + ")").toString(),
+				y: nerdamer("simplify(" + dep.expr.y.toString() + ")").toString(),
+			};
+			console.log("Simplified point", pid, dep.simplified);
+		}
+	} catch (e) {
+		console.warn("Failed to simplify point", pid, e);
+	}
 
 
-// recurse into parents
-if (dep.parents) {
-dep.parents.forEach((parentHash) => {
-const parentDep = dependencyMap[parentHash];
-if (parentDep && parentDep.depends) {
-parentDep.depends.forEach((p) => simplifyPointRecursive(p, visited));
-}
-});
-}
+	// recurse into parents
+	if (dep.parents) {
+		dep.parents.forEach((parentHash) => {
+			const parentDep = dependencyMap[parentHash];
+			if (parentDep && parentDep.depends) {
+				parentDep.depends.forEach((p) => simplifyPointRecursive(p, visited));
+			}
+		});
+	}
 }
 
 function addLengthDependency(a, b) {
