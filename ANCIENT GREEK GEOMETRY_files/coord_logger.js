@@ -587,15 +587,26 @@ changes.record = function(finished) {
                     lookupHash = `${pend.meta.a}${pend.type === 'arc' ? 'A' : 'L'}${pend.meta.b}`;
                     console.debug('changes.record: fallback computed lookupHash=', lookupHash);
                 }
-                const dep = dependencyMap[lookupHash];
-				if (dep && (dep.type === "line" || dep.type === "arc")) {
-					const [a, b] = dep.depends;
-					// collect + simplify for both endpoints
+                const dep = dependencyMap[lookupHash]; // we don't use this
+				// For the endpoints of the new line/arc
+				if (pend.type === "line" || pend.type === "arc") {
+					const [a, b] = [pend.meta.a, pend.meta.b];
+					console.debug('pend... changes.record: processing line/arc', pend.hash, 'newPids=', newPids, 'a=', a, 'b=', b, 'pend=', pend);
 					collectPointDependenciesRecursive(a);
 					simplifyPointRecursive(a);
 					collectPointDependenciesRecursive(b);
 					simplifyPointRecursive(b);
 				}
+				// if (dep && (dep.type === "line" || dep.type === "arc")) {		// DELETE, DOESN'T WORK
+				// 	const [a, b] = dep.depends;
+				// 	// collect + simplify for both endpoints
+				// 	console.debug('dep... changes.record: processing line/arc', pend.hash, 'newPids=', newPids, 'a=', a, 'b=', b);
+				// 	collectPointDependenciesRecursive(a);
+				// 	simplifyPointRecursive(a);
+				// 	collectPointDependenciesRecursive(b);
+				// 	simplifyPointRecursive(b);
+				// }																// DELETE, DOESN'T WORK
+
 
 				// simplify/calc length for this hash itself
 				if (pend.hash) {
@@ -658,8 +669,10 @@ changes.replay = function() {
 				objects.push(ch);
 			}
 		}
+		console.debug("replay: replayed objects:", objects);
 		// process endpoints for each replayed object
 		for (let obj of objects) {
+			console.debug("this should call recursive fxs")
 			const [a, b] = [obj.a, obj.b];
 			collectPointDependenciesRecursive(a);
 			simplifyPointRecursive(a);
@@ -763,13 +776,13 @@ function addLog() {
 
 // --- Recursive functions ---
 function collectPointDependenciesRecursive(pid, visited = new Set()) {
-	if (visited.has(pid)) return;
+	if (visited.has(pid)) { console.debug('collectPointDependenciesRecursive already visited', pid); return;}
 	visited.add(pid);
 
 
 	const dep = pointDependencies[pid];
-	if (!dep || !dep.parents) return;
-	console.log("collectPointDependenciesRecursive", pointDependencies[pid],"pid:", pid, "parents:", pid, dep.parents);
+	if (!dep || !dep.parents) { console.debug('collectPointDependenciesRecursive no parents', pid); return; } // return;
+	console.log('collectPointDependenciesRecursive', pointDependencies[pid],'pid:', pid, 'parents:', pid, dep.parents);
 
 	dep.parents.forEach((parentHash) => {
 		if (!dependencyMap[parentHash]) {
@@ -805,10 +818,10 @@ function simplifyPointRecursive(pid, visited = new Set()) {
 				x: nerdamer("simplify(" + dep.expr.x.toString() + ")").toString(),
 				y: nerdamer("simplify(" + dep.expr.y.toString() + ")").toString(),
 			};
-			console.log("Simplified point", pid, dep.simplified);
+			console.log('Simplified point', pid, dep.simplified);
 		}
 	} catch (e) {
-		console.warn("Failed to simplify point", pid, e);
+		console.warn('Failed to simplify point', pid, e);
 	}
 
 
