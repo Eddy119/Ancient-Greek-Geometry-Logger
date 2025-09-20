@@ -55,6 +55,17 @@ function addDependency(hash, info) {
 }
 
 function addPointDependency(pid, desc, expr, parents = []) {
+	if (!expr || typeof expr !== 'object') {
+        console.warn(`addPointDependency called for p${pid} with invalid expr`, expr, 'desc=', desc);
+        // create minimal entry so other code can still reference it, but don't throw.
+        if (!pointDependencies[pid]) {
+            pointDependencies[pid] = { desc, expr: null, change: null, point: window.points?.[pid], parents: parents.slice() };
+        } else {
+            pointDependencies[pid].desc = desc;
+            if (!pointDependencies[pid].parents) pointDependencies[pid].parents = parents.slice();
+        }
+        return;
+    }
 	console.log(`Adding point dependency for p${pid}: ${desc}`, expr, new Error().stack);
 	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid], parents: parents.slice() }; // copy of parents array // ch = point in changes map, point = ptObj
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
@@ -501,7 +512,22 @@ function describeIntersectionFromObjects(pid, objects) {
 				else if (type1 === 'line' && type2 === 'arc') expr = intersectArcLine(pid, a2, b2, a1, b1);
 				else if (type1 === 'arc' && type2 === 'arc') expr = intersectArcArc(pid, a1, b1, a2, b2);
 				 // attach parents to pointDependencies
-				pointDependencies[pid].parents = [h1, h2];
+				// If addPointDependency already created pointDependencies[pid], respect it.
+				// Otherwise create it (shouldn't usually happen — addPointDependency is called by intersect fxs).
+				if (!pointDependencies[pid]) {
+					// If intersect* returned an expr, create the dependency (safe fallback)
+					if (expr) {
+						addPointDependency(pid, `${type1}(${a1},${b1}) ∩ ${type2}(${a2},${b2})`, expr, [`${h1}`, `${h2}`]);
+					} else {
+						// create a minimal entry so recursion can find parents later
+						pointDependencies[pid] = { desc: `${h1}∩${h2}`, expr: null, change: null, point: window.points?.[pid], parents: [`${h1}`, `${h2}`] };
+					}
+				} else {
+					// If the intersection code created the entry but didn't set parents, ensure parents are present:
+					if (!Array.isArray(pointDependencies[pid].parents) || pointDependencies[pid].parents.length === 0) {
+						pointDependencies[pid].parents = [`${h1}`, `${h2}`];
+					}
+				}
 				return { pid, parents: [h1, h2], expr };
 			}
 		}
@@ -582,62 +608,40 @@ changes.record = function(finished) {
 				console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 				console.debug('changes.record: pendingObjects (before processing)=', pendingObjects);
 
-				// compute a robust lookupHash from pend.hash or pend.meta
-				let lookupHash = pend.hash;
-				if ((!dependencyMap[lookupHash] || !dependencyMap[lookupHash].depends) &&
-					pend.meta && typeof pend.meta.a !== 'undefined' && typeof pend.meta.b !== 'undefined') {
-					lookupHash = `${pend.meta.a}${pend.type === 'arc' ? 'A' : 'L'}${pend.meta.b}`;
-					console.debug('changes.record: fallback computed lookupHash=', lookupHash);
-				}
-
-				// ensure dependencyMap entry for this new object so recursion can traverse it
+				// ensure the dependencyMap entry exists for this object so recursion from endpoints works
 				if (!dependencyMap[lookupHash]) {
-					// add a minimal entry so collectPointDependenciesRecursive can see it
-					addDependency(lookupHash, { type: pend.type === 'arc' ? 'arc' : 'line', depends: [Number(pend.meta.a), Number(pend.meta.b)], actionId: null });
-					console.debug('changes.record: injected dependencyMap entry for', lookupHash);
+					addDependency(lookupHash, { type: pend.type === 'arc' ? 'arc' : 'line', depends: [Number(pend.meta.a), Number(pend.meta.b)], obj: pend.meta, actionId: null });
 				}
 
-				// 1) Recurse FROM the construction endpoints (this finds ancestors up the tree)
+				// 1) Simplify ancestors of the new object: recurse FROM the construction endpoints only
 				if (pend.type === "line" || pend.type === "arc") {
 					const a = Number(pend.meta.a), b = Number(pend.meta.b);
-					console.debug('pend... processing endpoints for', lookupHash, 'a=', a, 'b=', b, 'newPids=', newPids);
-
-					// collect/simplify ancestors for endpoints (stop when parents already exist)
+					console.debug('collect/simplify ancestors for endpoints', a, b, 'for', lookupHash);
 					collectPointDependenciesRecursive(a);
 					simplifyPointRecursive(a);
 					collectPointDependenciesRecursive(b);
 					simplifyPointRecursive(b);
 				}
 
-				// 2) Now attach and describe each NEW intersection point that appeared as a result of this object.
-				//    We don't recurse upward from these points; we seed their parents and let describeIntersectionFromObjects add expr/desc
+				// 2) Now call describeIntersectionFromObjects for each newPid *without* pre-creating parents.
+				//    Let the intersect* functions call addPointDependency() which will create pointDependencies[pid] + expr.
+				const objects = collectAllObjectsWith(lookupHash); // object list with new object first
 				for (const newPid of newPids) {
-					if (!pointDependencies[newPid]) pointDependencies[newPid] = { parents: [], desc: null, expr: null, change: null, point: window.points?.[newPid] };
-					// attach this object as the parent source of the new intersection
-					if (!Array.isArray(pointDependencies[newPid].parents)) pointDependencies[newPid].parents = [];
-					if (!pointDependencies[newPid].parents.includes(lookupHash)) pointDependencies[newPid].parents.push(lookupHash);
-
-					// call describeIntersectionFromObjects with objects list that includes this new object first
-					const objects = collectAllObjectsWith(lookupHash);
-					console.debug(`calling describeIntersectionFromObjects for p${newPid} with objects list (first=${objects[0]})`);
-					const res = describeIntersectionFromObjects(Number(newPid), objects);
-
-					if (res && pointDependencies[newPid]) {
-						// describeIntersectionFromObjects should have set pointDependencies[newPid].expr / .desc (via addPointDependency)
-						console.debug(`describeIntersectionFromObjects populated p${newPid}:`, pointDependencies[newPid]);
-					} else {
-						console.debug(`describeIntersectionFromObjects did NOT populate p${newPid} immediately; res=`, res);
+					try {
+						console.debug('describeIntersectionFromObjects for new pid', newPid, 'objects:', objects.slice(0,4));
+						const res = describeIntersectionFromObjects(Number(newPid), objects);
+						// If describe failed to populate pointDependencies entry, set fallback parents:
+						if ((!pointDependencies[newPid] || !Array.isArray(pointDependencies[newPid].parents) || pointDependencies[newPid].parents.length === 0) && lookupHash) {
+							if (!pointDependencies[newPid]) pointDependencies[newPid] = { desc: null, expr: null, change: null, point: window.points?.[newPid], parents: [] };
+							if (!pointDependencies[newPid].parents.includes(lookupHash)) pointDependencies[newPid].parents.push(lookupHash);
+							console.debug(`fallback: attached parent ${lookupHash} to p${newPid}`);
+						} else {
+							console.debug(`describe: p${newPid} now has`, pointDependencies[newPid]?.parents);
+						}
+					} catch (e) {
+						console.warn('describeIntersectionFromObjects failed for', newPid, e);
 					}
 				}
-				// if (dep && (dep.type === "line" || dep.type === "arc")) {		// DELETE, DOESN'T WORK
-				// 	const [a, b] = dep.depends;
-				// 	// collect + simplify for both endpoints
-				// 	console.debug('dep... changes.record: processing line/arc', pend.hash, 'newPids=', newPids, 'a=', a, 'b=', b);
-				// 	collectPointDependenciesRecursive(a);
-				// 	simplifyPointRecursive(a);
-				// 	collectPointDependenciesRecursive(b);
-				// 	simplifyPointRecursive(b);
-				// }																// DELETE, DOESN'T WORK
 
 				// simplify/calc length for this hash itself
 				if (pend.hash) {
