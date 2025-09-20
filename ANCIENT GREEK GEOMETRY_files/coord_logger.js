@@ -518,10 +518,13 @@ window.makeline = function(p1, p2, spec) {
     const beforeSet = snapshotPointIds();
     console.debug(`makeline: snapshot before has ${beforeSet.size} points`);
     const res = orig_makeline.apply(this, arguments);
-    const hash = `${p1}L${p2}`;
+    // normalize ids: p1/p2 may be numeric ids or point objects with .id
+    const aId = (p1 && typeof p1 === 'object' && typeof p1.id !== 'undefined') ? Number(p1.id) : Number(p1);
+    const bId = (p2 && typeof p2 === 'object' && typeof p2.id !== 'undefined') ? Number(p2.id) : Number(p2);
+    const hash = `${aId}L${bId}`;
     console.debug(`makeline: created pending object ${hash}`);
-    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: Number(p1), b: Number(p2) } });
-	console.debug('makeline pushed pendingObject', pendingObjects[pendingObjects.length-1]);
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'line', meta: { a: aId, b: bId } });
+    console.debug('makeline pushed pendingObject', pendingObjects[pendingObjects.length-1]);
     return res;
 };
 
@@ -530,10 +533,12 @@ window.makearc = function(c, e, r, spec) {
     const beforeSet = snapshotPointIds();
     console.debug(`makearc: snapshot before has ${beforeSet.size} points`);
     const res = orig_makearc.apply(this, arguments);
-    const hash = `${c}A${e}`;
+    const cId = (c && typeof c === 'object' && typeof c.id !== 'undefined') ? Number(c.id) : Number(c);
+    const eId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
+    const hash = `${cId}A${eId}`;
     console.debug(`makearc: created pending object ${hash}`);
-    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: Number(c), b: Number(e) } });
-	console.debug('makearc pushed pendingObject', pendingObjects[pendingObjects.length-1]);
+    pendingObjects.push({ hash, beforeIds: beforeSet, type: 'arc', meta: { a: cId, b: eId } });
+    console.debug('makearc pushed pendingObject', pendingObjects[pendingObjects.length-1]);
     return res;
 };
 
@@ -577,7 +582,12 @@ changes.record = function(finished) {
 				console.debug('changes.record: pendingObjects (before processing)=', pendingObjects);
 
 				// grab the dep object
-				const dep = dependencyMap[pend.hash];
+				let lookupHash = pend.hash;
+                if (!dependencyMap[lookupHash] && pend.meta && typeof pend.meta.a !== 'undefined' && typeof pend.meta.b !== 'undefined') {
+                    lookupHash = `${pend.meta.a}${pend.type === 'arc' ? 'A' : 'L'}${pend.meta.b}`;
+                    console.debug('changes.record: fallback computed lookupHash=', lookupHash);
+                }
+                const dep = dependencyMap[lookupHash];
 				if (dep && (dep.type === "line" || dep.type === "arc")) {
 					const [a, b] = dep.depends;
 					// collect + simplify for both endpoints
