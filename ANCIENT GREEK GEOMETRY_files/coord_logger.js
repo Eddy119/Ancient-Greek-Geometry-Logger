@@ -68,7 +68,7 @@ function addPointDependency(pid, desc, expr, parents = [], type = "intersection"
 		window.points[pid].symbolic = `p${pid}`;
 	}
 	if (!pointDependencies[pid]) pointDependencies[pid] = {};
-	if (pointDependencies[pid].type = "collinear") {
+	if (pointDependencies[pid].type === "collinear") {
 		pointDependencies[pid].parents = new Set(parents);
 		pointDependencies[pid].type = type;
 		pointDependencies[pid].desc = `${type} of ${[...parents].join(", ")}`;
