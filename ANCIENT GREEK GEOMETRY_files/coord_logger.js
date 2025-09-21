@@ -54,12 +54,22 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr, parents = [], type = "intersection") {
-	console.log(`Adding point dependency for p${pid}: ${desc}`, expr);
-	pointDependencies[pid] = { desc, expr, change: null, point: window.points?.[pid]}; // copy of parents array // ch = point in changes map, point = ptObj
-	if (pointDependencies[pid].type === "intersection") {
-		pointDependencies[pid].parents = parents.slice();
-	}
+function addPointDependency(pid, desc, expr = null, parents = [], type = "intersection", meta = {}) {
+	// ensure parents is an array
+	const parentsArr = Array.isArray(parents) ? parents.slice() : (parents ? Array.from(parents) : []);
+
+	// canonical write (no overwrites later)
+	pointDependencies[pid] = {
+		desc: desc ?? pointDependencies[pid]?.desc ?? "",
+		expr: (typeof expr !== 'undefined') ? expr : (pointDependencies[pid]?.expr ?? null),
+		change: pointDependencies[pid]?.change ?? null,
+		point: window.points?.[pid] ?? pointDependencies[pid]?.point ?? null,
+		parents: parentsArr,
+		type: type ?? pointDependencies[pid]?.type ?? "intersection",
+		meta: Object.assign({}, pointDependencies[pid]?.meta ?? {}, meta)
+	};
+
+	// book-keeping: jump map, set symbolic name
 	const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
 	if (!window._jumpPointMap) window._jumpPointMap = {};
 	if (!window._jumpPointMap[jIndex]) window._jumpPointMap[jIndex] = new Set();
@@ -67,12 +77,8 @@ function addPointDependency(pid, desc, expr, parents = [], type = "intersection"
 	if (window.points && window.points[pid]) {
 		window.points[pid].symbolic = `p${pid}`;
 	}
-	if (!pointDependencies[pid]) pointDependencies[pid] = {};
-	if (pointDependencies[pid].type === "collinear") {
-		pointDependencies[pid].parents = new Set(parents); // buggy, only records one parent?
-		pointDependencies[pid].type = type;
-		pointDependencies[pid].desc = `${type} of ${[...parents].join(", ")}`;
-	}
+
+	// attach change ref if available (keeps previous behavior)
 	addChangesToPointDependency(pid);
 }
 
@@ -185,16 +191,30 @@ function findCollinearBaseLine(hash, a, b) {
 function intersectLineLine(pid, a, b, c, d) {
 	// collinearity check
 	if (areCollinearPoints(a, b, c, d)) {
-		const colBase = findCollinearBaseLine(`${a}${b}`, a, b) || `${c}${d}`;
-		console.log("collinear pointDependencies[b] :",pointDependencies[b]);
-		if (b != 0 && b != 1) {
-			addPointDependency(pid, [colBase],pointDependencies[b].expr, "_", "collinear");
-		} else if (a != 0 && a != 1){
-			addPointDependency(pid, [colBase],pointDependencies[a].expr, "_", "collinear");
-		} else {
-			console.log("this can't exist??")
-			}
-		return null;
+		// canonical hashes
+		const h1 = `${a}L${b}`;
+		const h2 = `${c}L${d}`;
+
+		// try to find an existing base line to reference (optional)
+		const base = findCollinearBaseLine(h1, a, b) || findCollinearBaseLine(h2, c, d) || null;
+
+		// Record the intersection with both parents but NO expr (avoid denom=0)
+		addPointDependency(
+			pid,
+			`collinear intersection of ${h1} and ${h2}`,
+			null,                // expr null -> don't attempt to simplify
+			[h1, h2],            // keep both parents
+			"collinear",         // type
+			{ collinearBase: base } // meta: which existing line is canonical (may be null)
+		);
+
+		// Also mark or annotate dependencyMap entries if you want:
+		if (base) {
+			if (dependencyMap[h1]) dependencyMap[h1].collinearWith = base;
+			if (dependencyMap[h2]) dependencyMap[h2].collinearWith = base;
+		}
+
+		return null; // no expr returned
 	}
 	
 	// … existing intersection math …
