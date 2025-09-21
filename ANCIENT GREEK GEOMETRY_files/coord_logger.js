@@ -629,16 +629,51 @@ changes.record = function(finished) {
 						obj: null,
 					};
 				}
-				// gather ancestors of this new object
-				const ancestorPoints = collectAncestors(pend.hash);
-				console.debug("Ancestor points for", pend.hash, ancestorPoints);
 
-				// only log dependencies for ancestor points
-				for (const pid of ancestorPoints) {
-					const objects = [pend.hash];
-					console.debug(`Record patch: describing intersection for p${pid} from object ${pend.hash}`);
-					describeIntersectionFromObjects(Number(pid), objects);
-				}
+				// compute new pids for this pending object
+                const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
+                console.debug(`pending ${pend.hash} -> newPids:`, newPids);
+
+                // If none found (rare), we still attempt coordinate-based matching across all points added since the earliest before snapshot
+                if (newPids.length === 0) {
+					// fallback: try to find any points added since smallest before snapshot among pendingObjects
+                    // build a union of all beforeIds to get a global baseline
+                    console.debug('changes.record: no newPids found for', pend);
+                    const unionBefore = new Set();
+                    for (let p of pendingObjects) {
+                        for (let id of p.beforeIds) unionBefore.add(id);
+                    }
+                    const candidates = [...afterAll].filter(x => !unionBefore.has(x));
+					// we won't try to auto-match here, skip — usually previous logic suffices
+                    console.debug('changes.record: fallback candidates since unionBefore:', candidates);
+                }
+
+                // build objects list including the newly-created object hash
+                const objects = collectAllObjectsWith(pend.hash);
+				console.debug("pendingObjects: ",pendingObjects,"pend: ",pend," pend.hash: ", pend.hash);// more debug
+                // call describeIntersectionFromObjects for each newly created pid
+                for (const pid of newPids) {
+                    console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects, ${objects}`);
+					console.debug("ch.a: ",pend.meta.a, " typeof ch.a: ", typeof pend.meta.a);
+                    describeIntersectionFromObjects(Number(pid), objects);
+                    if (pointDependencies[pid]) {
+                        console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
+                        try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
+                    } else {
+                        console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
+                    }
+                }
+
+				// // old gather ancestors of this new object (for reference)
+				// const ancestorPoints = collectAncestors(pend.hash);
+				// console.debug("Ancestor points for", pend.hash, ancestorPoints);
+
+				// // only log dependencies for ancestor points
+				// for (const pid of ancestorPoints) {
+				// 	const objects = [pend.hash];
+				// 	console.debug(`Record patch: describing intersection for p${pid} from object ${pend.hash}`);
+				// 	describeIntersectionFromObjects(Number(pid), objects);
+				// }
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
@@ -750,7 +785,7 @@ function addLog() {
 	}
 }
 
-// --- NEW: recursive ancestor collection ---
+// --- uncalled old recursive ancestor collection for reference ---
 function collectAncestors(hash, visited = new Set()) {
 	if (visited.has(hash)) return [];
 	visited.add(hash);
