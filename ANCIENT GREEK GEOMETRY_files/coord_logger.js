@@ -515,8 +515,8 @@ function exprIntersectLineLine(pid, h1, h2) {
 
 	// determinant formula
 	const denom = `(${Ax}-${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}-${Dx})`;
-	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
-	const y = `((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
+	const x = simplifyExprString(`((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`);
+	const y = simplifyExprString(`((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`);
 
 	return { x, y };
 }
@@ -551,11 +551,11 @@ function exprArcArc(a, b, c, d, choice) {
 
 	let ix, iy;
 	if (choice === 0) {
-		ix = `${px} + ${h}*(${rx})/${mag}`;
-		iy = `${py} + ${h}*(${ry})/${mag}`;
+		ix = simplifyExprString(`${px} + ${h}*(${rx})/${mag}`);
+		iy = simplifyExprString(`${py} + ${h}*(${ry})/${mag}`);
 	} else {
-		ix = `${px} - ${h}*(${rx})/${mag}`;
-		iy = `${py} - ${h}*(${ry})/${mag}`;
+		ix = simplifyExprString(`${px} - ${h}*(${rx})/${mag}`);
+		iy = simplifyExprString(`${py} - ${h}*(${ry})/${mag}`);
 	}
 	return { x: ix, y: iy };
 }
@@ -588,8 +588,8 @@ function exprArcLine(a, b, c, d, choice) {
 		t = `(-${B} - ${sqrtDisc}) / (2*${A})`;
 	}
 
-	const ix = `${cx} + ${t}*${vx}`;
-	const iy = `${cy} + ${t}*${vy}`;
+	const ix = simplifyExprString(`${cx} + ${t}*${vx}`);
+	const iy = simplifyExprString(`${cy} + ${t}*${vy}`);
 	return { x: ix, y: iy };
 }
 
