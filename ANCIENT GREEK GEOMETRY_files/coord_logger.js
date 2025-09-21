@@ -211,6 +211,18 @@ if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 function _getSymCoord(id, coord) {
 	// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
 	if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
+
+	// Try to compute the expression lazily if we have a skeleton for this point
+	try {
+		if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
+			// attempt to ensure the expression for this point (will recurse to parents as needed)
+			ensureExpr(Number(id));
+			if (pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
+		}
+	} catch (e) {
+		console.debug('_getSymCoord: ensureExpr failed for p' + id, e);
+	}
+
 	if (symbolicPoints[id] && typeof symbolicPoints[id][coord] !== 'undefined') return symbolicPoints[id][coord];
 	return `p${id}${coord}`;
 }
@@ -355,6 +367,18 @@ function simplifyExprString(exprStr) {
 	}
 }
 
+function simplifyPoint(pid, options = { force: false }) {
+	const info = pointDependencies[pid];
+	if (!info || !info.expr) return null;
+	if (info.simplified && !options.force) return info.simplified;
+	const sx = info.expr.x;
+	const sy = info.expr.y;
+	const sx_s = simplifyExprString(sx);
+	const sy_s = simplifyExprString(sy);
+	info.simplified = { x: sx_s, y: sy_s };
+	return info.simplified;
+}
+
 function lengthBetweenSymbolic(a, b) {
 	// return symbolic expression (unsimplified) for distance between a and b
 	const ax = _getSymCoord(a,'x'), ay = _getSymCoord(a,'y');
@@ -433,6 +457,7 @@ function pointOnArc(pid, centerId, edgeId, tol = 1e-6) {
 function describeIntersectionFromObjects(pid, objects) {
 	console.debug("is it inputting garbage? ",objects);
 	if (!Array.isArray(objects) || objects.length < 2) return null;
+	let found = false;
 	for (let i = 0; i < objects.length; i++) {
 		for (let j = i + 1; j < objects.length; j++) {
 			const h1 = objects[i], h2 = objects[j];
@@ -443,6 +468,7 @@ function describeIntersectionFromObjects(pid, objects) {
 			const ok1 = (type1 === 'line' ? pointOnLine(pid, a1, b1) : pointOnArc(pid, a1, b1));
 			const ok2 = (type2 === 'line' ? pointOnLine(pid, a2, b2) : pointOnArc(pid, a2, b2));
 			if (ok1 && ok2) {
+				found = true;
 				let expr = null;
 				if (type1 === 'line' && type2 === 'line') expr = intersectLineLine(pid, a1, b1, a2, b2);
 				else if (type1 === 'arc' && type2 === 'line') expr = intersectArcLine(pid, a1, b1, a2, b2);
@@ -452,13 +478,15 @@ function describeIntersectionFromObjects(pid, objects) {
 				if (!pointDependencies[pid] || !pointDependencies[pid].parents || pointDependencies[pid].parents.length === 0) {
 					// fallback: write parents from objects array (objects order should be the two hashes)
 					console.warn("fallback: write parents from objects array");
-					const fallbackParents = objects.map(o => String(o)).slice(0, 2);
+					const fallbackParents = [h1, h2].slice(0, 2);
 					addPointParentSkeleton(pid, `fallback ${fallbackParents.join(',')}`, fallbackParents, "intersection");
 				}
+				// we only need the first matching pair
+				return pointDependencies[pid] || null;
 			}
 		}
 	}
-	console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
+	if (!found) console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
 	return null;
 }
 
@@ -466,45 +494,56 @@ function ensureExpr(pid) {
 	const dep = pointDependencies[pid];
 	if (!dep) {
 		console.error(`ensureExpr: no pointDependencies for p${pid}`);
-		return;
+		return null;
 	}
-
 	// If expression already exists, bail out
 	if (dep.expr) return dep.expr;
-
+	if (dep._computing) return null; // already in progress
+	dep._computing = true;
 	// Parents should already be populated by addPointParentSkeleton
 	if (!dep.parents || dep.parents.length < 2) {
 		console.error(`ensureExpr: not enough parents for p${pid}`, dep.parents);
-		return;
+		dep._computing = false;
+		return null;
 	}
 
 	const [obj1, obj2] = dep.parents;
+	let expr = null;
+	try {
+		if (obj1.includes("L") && obj2.includes("L")) {
+			// line-line
+			expr = exprIntersectLineLine(obj1, obj2);
+		} else if ((obj1.includes("A") && obj2.includes("L")) || (obj1.includes("L") && obj2.includes("A"))) {
+			// arc-line: ensure we pass (arcCenter, arcEdge, lineP1, lineP2)
+			let arcHash = obj1.includes('A') ? obj1 : obj2;
+			let lineHash = obj1.includes('L') ? obj1 : obj2;
+			const [ac, ae] = arcHash.split(/A|L/).map(Number);
+			const [lp1, lp2] = lineHash.split(/A|L/).map(Number);
 
-	let expr;
-	if (obj1.includes("L") && obj2.includes("L")) {
-		expr = exprIntersectLineLine(pid, obj1, obj2);
-	} else if (
-		(obj1.includes("A") && obj2.includes("L")) ||
-		(obj1.includes("L") && obj2.includes("A"))
-	) {
-		expr = exprArcLine(pid, obj1, obj2);
-	} else if (obj1.includes("A") && obj2.includes("A")) {
-		expr = exprArcArc(pid, obj1, obj2);
-	} else {
-		console.error(`ensureExpr: unrecognized parent combo for p${pid}`, obj1, obj2);
-		return;
+			const cand1 = exprArcLine(ac, ae, lp1, lp2, 0);
+			const cand2 = exprArcLine(ac, ae, lp1, lp2, 1);
+			expr = chooseExprForPid(pid, cand1, cand2);
+		} else if (obj1.includes("A") && obj2.includes("A")) {
+			// arc-arc
+			const [a1, b1] = obj1.split(/A|L/).map(Number);
+			const [a2, b2] = obj2.split(/A|L/).map(Number);
+			const cand1 = exprArcArc(a1, b1, a2, b2, 0);
+			const cand2 = exprArcArc(a1, b1, a2, b2, 1);
+			expr = chooseExprForPid(pid, cand1, cand2);
+		} else {
+			console.error(`ensureExpr: unrecognized parent combo for p${pid}`, obj1, obj2);
+		}
+	} catch (e) {
+		console.error('ensureExpr: error computing expr for p' + pid, e);
+		expr = null;
 	}
 
 	dep.expr = expr;
+	dep._computing = false;
 	return expr;
 }
 
-function exprIntersectLineLine(pid, h1, h2) {
-	if (areCollinearPoints(a, b, c, d)) {
-		// just inherit expr of one of the known points
-		const inheritPid = b !== 0 && b !== 1 ? b : a;
-		return pointDependencies[inheritPid]?.expr || null;
-	}
+function exprIntersectLineLine(h1, h2) {
 	// recover endpoints from hash
 	const [a, b] = h1.split("L").map(Number);
 	const [c, d] = h2.split("L").map(Number);
@@ -606,7 +645,7 @@ function pointDependenciesFor(hash) {
 function chooseExprForPid(pid, expr1, expr2) {
   // numeric positions
   const P = window.points?.[pid];
-  if (!P) return expr1; // fallback
+  if (!P) { console.warn(`no numeric position for pid ${pid}`); return expr1; } // fallback
   // Evaluate expr1/expr2 numerically (you need a numeric evaluator for the expr type)
   // If expr1/2 are nerdamer objects or strings, you can evaluate them:
   try {
@@ -621,7 +660,7 @@ function chooseExprForPid(pid, expr1, expr2) {
     return (d2 < d1) ? expr2 : expr1;
   } catch (e) {
     // fallback: return expr1
-    return expr1;
+    console.warn('chooseExprForPid error', e); return expr1;
   }
 }
 
