@@ -492,38 +492,62 @@ function describeIntersectionFromObjects(pid, objects) {
 }
 
 function ensureExpr(pid) {
-	const pd = pointDependencies[pid];
-	if (!pd) return null;
-	if (pd.expr) return pd.expr; // already computed
-
-	// 1) try special-case: collinear -> no expr (or derive from base)
-	if (pd.type === 'collinear') {
-		// no safe algebraic expr (den==0). Keep expr null or derive from collinearBase if available.
-		if (pd.meta?.collinearBase && pointDependenciesFor(pd.meta.collinearBase)?.expr) {
-			// optional: try to reuse base expr (advanced)
-			return pointDependencies[pid].expr = null;
-		}
-		return null;
+	const dep = pointDependencies[pid];
+	if (!dep) {
+		console.error(`ensureExpr: no pointDependencies for p${pid}`);
+		return;
 	}
 
-	// 2) prefer an engine-aware _getSymCoord(pid) if it exists
-	if (typeof window._getSymCoord === 'function') {
-		try {
-			const sym = window._getSymCoord(pid); // expected {x: '...', y: '...'} or similar
-			if (sym) {
-				pd.expr = { x: String(sym.x), y: String(sym.y) };
-				return pd.expr;
-			}
-		} catch (e) {
-			console.debug("ensureExpr: _getSymCoord failed for p", pid, e);
-		}
+	// If expression already exists, bail out
+	if (dep.expr) return dep.expr;
+
+	// Parents should already be populated by addPointParentSkeleton
+	if (!dep.parents || dep.parents.length < 2) {
+		console.error(`ensureExpr: not enough parents for p${pid}`, dep.parents);
+		return;
 	}
 
-	// 3) fallback: attempt a simple per-type symbolic build (placeholder)
-	// Example for line-line: try to build symbolic expression from parents' expr
-	// This is domain-specific and can be implemented later.
-	pd.expr = computeSymbolicForPid(pid);
-	return pd.expr;
+	const [obj1, obj2] = dep.parents;
+
+	let expr;
+	if (obj1.includes("L") && obj2.includes("L")) {
+		expr = exprIntersectLineLine(pid, obj1, obj2);
+	} else if (
+		(obj1.includes("A") && obj2.includes("L")) ||
+		(obj1.includes("L") && obj2.includes("A"))
+	) {
+		expr = exprIntersectArcLine(pid, obj1, obj2);
+	} else if (obj1.includes("A") && obj2.includes("A")) {
+		expr = exprIntersectArcArc(pid, obj1, obj2);
+	} else {
+		console.error(`ensureExpr: unrecognized parent combo for p${pid}`, obj1, obj2);
+		return;
+	}
+
+	dep.expr = expr;
+	return expr;
+}
+
+function exprIntersectLineLine(pid, h1, h2) {
+	if (areCollinearPoints(a, b, c, d)) {
+		// just inherit expr of one of the known points
+		const inheritPid = b !== 0 && b !== 1 ? b : a;
+		return pointDependencies[inheritPid]?.expr || null;
+	}
+	// recover endpoints from hash
+	const [a, b] = h1.split("L").map(Number);
+	const [c, d] = h2.split("L").map(Number);
+
+	// use _getSymCoord for coords
+	const A = _getSymCoord(a), B = _getSymCoord(b);
+	const C = _getSymCoord(c), D = _getSymCoord(d);
+
+	// determinant formula
+	const denom = `(${A.x}-${B.x})*(${C.y}-${D.y}) - (${A.y}-${B.y})*(${C.x}-${D.x})`;
+	const x = `((${A.x}*${B.y}-${A.y}*${B.x})*(${C.x}-${D.x}) - (${A.x}-${B.x})*(${C.x}*${D.y}-${C.y}*${D.x})) / ${denom}`;
+	const y = `((${A.x}*${B.y}-${A.y}*${B.x})*(${C.y}-${D.y}) - (${A.y}-${B.y})*(${C.x}*${D.y}-${C.y}*${D.x})) / ${denom}`;
+
+	return { x, y };
 }
 
 function pointDependenciesFor(hash) {
