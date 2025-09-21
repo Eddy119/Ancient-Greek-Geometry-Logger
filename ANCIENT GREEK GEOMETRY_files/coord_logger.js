@@ -36,6 +36,50 @@ footerDiv.style.fontSize = '11px';
 footerDiv.style.color = '#666';
 footerDiv.style.marginTop = '6px';
 
+// helpers for consistent hash formatting
+function makeLineHash(a, b) {
+	a = Number(a); b = Number(b);
+	return `${a}L${b}`;
+}
+function makeArcHash(a, b) {
+	return `${Number(a)}A${Number(b)}`;
+}
+
+function addPointParentSkeleton(pid, desc, parents = [], type = "intersection", meta = {}) {
+  // ensure a canonical pointDependencies entry exists and keep expr untouched
+  if (!pointDependencies[pid]) {
+    pointDependencies[pid] = {
+      desc: desc ?? (pointDependencies[pid]?.desc ?? ""),
+      expr: pointDependencies[pid]?.expr ?? null, // keep existing expr if any
+      change: pointDependencies[pid]?.change ?? null, // making this addChangesToPointDependency(pid) causes undefined error, adding below*
+      point: window.points?.[pid] ?? pointDependencies[pid]?.point ?? null,
+      parents: [],
+      type: type ?? pointDependencies[pid]?.type ?? "intersection",
+      meta: Object.assign({}, pointDependencies[pid]?.meta ?? {}, meta)
+    };
+	addChangesToPointDependency(pid); // *here
+  }
+
+  // merge parents without duplicates (parents are hashes like '2L3' or '0A1')
+  const target = pointDependencies[pid].parents || [];
+  for (const h of parents) {
+    if (!target.includes(h)) target.push(h);
+  }
+  pointDependencies[pid].parents = target;
+
+  // keep desc/type/meta up-to-date
+  if (desc) pointDependencies[pid].desc = desc;
+  if (type) pointDependencies[pid].type = type;
+  pointDependencies[pid].meta = Object.assign({}, pointDependencies[pid].meta || {}, meta);
+
+  // light bookkeeping (jump map, optional)
+  const jIndex = (changes && changes.jumps) ? changes.jumps.length - 1 : 0;
+  window._jumpPointMap = window._jumpPointMap || {};
+  window._jumpPointMap[jIndex] = window._jumpPointMap[jIndex] || new Set();
+  window._jumpPointMap[jIndex].add(String(pid));
+}
+
+
 function updateFooter() {
 	if (!coordBar) return;
 	let jumpsLen = changes && changes.jumps ? changes.jumps.length : 0;
@@ -54,7 +98,7 @@ function addDependency(hash, info) {
 	dependencyMap[hash] = info;
 }
 
-function addPointDependency(pid, desc, expr = null, parents = [], type = "intersection", meta = {}) {
+function addPointDependency(pid, desc, expr = null, parents = [], type = "intersection", meta = {}) { // uncalled function right now
 	// ensure parents is an array
 	const parentsArr = Array.isArray(parents) ? parents.slice() : (parents ? Array.from(parents) : []);
 
@@ -79,7 +123,9 @@ function addPointDependency(pid, desc, expr = null, parents = [], type = "inters
 	}
 
 	// attach change ref if available (keeps previous behavior)
-	addChangesToPointDependency(pid);
+	if (pointDependencies[pid].change === null) {
+		addChangesToPointDependency(pid); // where do we put this now
+	}
 }
 
 function addChangesToPointDependency(pid) {
@@ -189,164 +235,45 @@ function findCollinearBaseLine(hash, a, b) {
 }
 
 function intersectLineLine(pid, a, b, c, d) {
-	// collinearity check
+	const h1 = makeLineHash(a, b);
+	const h2 = makeLineHash(c, d);
+
+	// collinearity check (use your existing helper)
 	if (areCollinearPoints(a, b, c, d)) {
-		// canonical hashes
-		const h1 = `${a}L${b}`;
-		const h2 = `${c}L${d}`;
+		// tag as collinear but keep both parents so dependency graph is intact
+		const desc = `collinear intersection ${h1} ∩ ${h2}`;
+		addPointParentSkeleton(pid, desc, [h1, h2], "collinear", { note: "collinear pair" });
 
-		// try to find an existing base line to reference (optional)
-		const base = findCollinearBaseLine(h1, a, b) || findCollinearBaseLine(h2, c, d) || null;
-
-		// Record the intersection with both parents but NO expr (avoid denom=0)
-		addPointDependency(
-			pid,
-			`collinear intersection of ${h1} and ${h2}`,
-			null,                // expr null -> don't attempt to simplify
-			[h1, h2],            // keep both parents
-			"collinear",         // type
-			{ collinearBase: base } // meta: which existing line is canonical (may be null)
-		);
-
-		// Also mark or annotate dependencyMap entries if you want:
-		if (base) {
-			if (dependencyMap[h1]) dependencyMap[h1].collinearWith = base;
-			if (dependencyMap[h2]) dependencyMap[h2].collinearWith = base;
-		}
+		// annotate dependencyMap lines if you want
+		if (dependencyMap[h1]) dependencyMap[h1].collinearWith = dependencyMap[h1].collinearWith || h2;
+		if (dependencyMap[h2]) dependencyMap[h2].collinearWith = dependencyMap[h2].collinearWith || h1;
 
 		return null; // no expr returned
 	}
-	
-	// … existing intersection math …
-	// build symbolic formula for intersection of line AB and CD using determinant formula
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	const x1 = _getSymCoord(a,'x'), y1 = _getSymCoord(a,'y');
-	const x2 = _getSymCoord(b,'x'), y2 = _getSymCoord(b,'y');
-	const x3 = _getSymCoord(c,'x'), y3 = _getSymCoord(c,'y');
-	const x4 = _getSymCoord(d,'x'), y4 = _getSymCoord(d,'y');
 
-	const den = `(${x1} - ${x2})*(${y3} - ${y4}) - (${y1} - ${y2})*(${x3} - ${x4})`;
-	const numx = `((${x1}*${y2} - ${y1}*${x2})*(${x3} - ${x4}) - (${x1} - ${x2})*(${x3}*${y4} - ${y3}*${x4}))`;
-	const numy = `((${x1}*${y2} - ${y1}*${x2})*(${y3} - ${y4}) - (${y1} - ${y2})*(${x3}*${y4} - ${y3}*${x4}))`;
-	const expr = { x: `(${numx})/(${den})`, y: `(${numy})/(${den})` };
-	addPointDependency(pid, `line(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}L${b}`, `${c}L${d}`]);
-	return expr;
+	// normal (non-collinear) case: record parents; expr will be produced lazily later
+	const desc = `L(${a},${b}) ∩ L(${c},${d})`;
+	addPointParentSkeleton(pid, desc, [h1, h2], "intersection");
+	return null;
 }
 
-function intersectArcLine(pid, a, b, c, d) {
-	// arc (center a, edge b) intersect line (c,d)
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	// numeric helpers to decide ordering (which of the two intersections matches pid)
-	const P = pointCoords(pid);
-	const E = pointCoords(c); const L = pointCoords(d);
-	const C = pointCoords(a); const Edge = pointCoords(b);
-	if (!E || !L || !C || !Edge) {
-		// fallback: just attach symbolic placeholders
-		const expr = { x: `(arc(${a},${b})∩line(${c},${d}))x`, y: `(arc(${a},${b})∩line(${c},${d}))y` };
-		addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}A${b}`, `${c}L${d}`]);
-		return expr;
-	}
-	// compute numeric intersections using standard quadratic method from geo.js
-	const ex = E.x, ey = E.y, lx = L.x, ly = L.y;
-	const cx = C.x, cy = C.y;
-	const r = Math.hypot(Edge.x - cx, Edge.y - cy);
-	const dx = lx - ex, dy = ly - ey;
-	const fx = ex - cx, fy = ey - cy;
-	const Acoef = dx*dx + dy*dy;
-	const Bcoef = 2*(fx*dx + fy*dy);
-	const Ccoef = (fx*fx + fy*fy) - r*r;
-	const disc = Bcoef*Bcoef - 4*Acoef*Ccoef;
-	if (disc < 0) {
-		// no real intersection; still attach symbolic
-		const expr = { x: `(arc(${a},${b})∩line(${c},${d}))x`, y: `(arc(${a},${b})∩line(${c},${d}))y` };
-		addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, expr, [`${a}A${b}`, `${c}L${d}`]);
-		return expr;
-	}
-	const sqrtD = Math.sqrt(disc);
-	const t1 = (-Bcoef - sqrtD) / (2*Acoef);
-	const t2 = (-Bcoef + sqrtD) / (2*Acoef);
-	const p1 = { x: ex + t1*dx, y: ey + t1*dy };
-	const p2 = { x: ex + t2*dx, y: ey + t2*dy };
-	// construct symbolic expressions for p1 and p2 in terms of parameters
-	const sx_ex = _getSymCoord(c,'x'), sx_ey = _getSymCoord(c,'y');
-	const sx_lx = _getSymCoord(d,'x'), sx_ly = _getSymCoord(d,'y');
-	const sx_cx = _getSymCoord(a,'x'), sx_cy = _getSymCoord(a,'y');
-	const sx_edge_x = _getSymCoord(b,'x'), sx_edge_y = _getSymCoord(b,'y');
-	const sx_r2 = `((${sx_edge_x} - ${sx_cx})^2 + (${sx_edge_y} - ${sx_cy})^2)`;
-	const sx_dx = `(${sx_lx} - ${sx_ex})`; const sx_dy = `(${sx_ly} - ${sx_ey})`;
-	const sx_fx = `(${sx_ex} - ${sx_cx})`; const sx_fy = `(${sx_ey} - ${sx_cy})`;
-	const sx_A = `(${sx_dx})^2 + (${sx_dy})^2`;
-	const sx_B = `2*(${sx_fx}*${sx_dx} + ${sx_fy}*${sx_dy})`;
-	const sx_C = `(${sx_fx})^2 + (${sx_fy})^2 - (${sx_r2})`;
-	// symbolic t1/t2 (quadratic formula)
-	const sx_disc = `(${sx_B})^2 - 4*(${sx_A})*(${sx_C})`;
-	const sx_t1 = `((-1*(${sx_B})) - sqrt(${sx_disc}))/(2*(${sx_A}))`;
-	const sx_t2 = `((-1*(${sx_B})) + sqrt(${sx_disc}))/(2*(${sx_A}))`;
-	const expr1 = { x: `(${sx_ex}) + (${sx_t1})*(${sx_dx})`, y: `(${sx_ey}) + (${sx_t1})*(${sx_dy})` };
-	const expr2 = { x: `(${sx_ex}) + (${sx_t2})*(${sx_dx})`, y: `(${sx_ey}) + (${sx_t2})*(${sx_dy})` };
-	// choose which symbolic expression corresponds to numeric pid
-	let chosenExpr = expr1;
-	if (P) {
-		const d1 = Math.hypot(P.x - p1.x, P.y - p1.y);
-		const d2 = Math.hypot(P.x - p2.x, P.y - p2.y);
-		chosenExpr = (d2 < d1) ? expr2 : expr1;
-	}
-	addPointDependency(pid, `arc(${a},${b}) ∩ line(${c},${d})`, chosenExpr, [`${a}A${b}`, `${c}L${d}`]);
-	return chosenExpr;
+function intersectArcLine(pid, arcCenter, arcEdge, lineP1, lineP2) { // engine ordering relied on
+	const hArc = makeArcHash(arcCenter, arcEdge);
+	const hLine = makeLineHash(lineP1, lineP2);
+
+	// record parents only
+	const desc = `A(${arcCenter},${arcEdge}) ∩ L(${lineP1},${lineP2})`;
+	addPointParentSkeleton(pid, desc, [hArc, hLine], "intersection");
+	return null;
 }
 
-function intersectArcArc(pid, a, b, c, d) {
-	// two circles intersection (arc centers a,c with edge b,d respectively)
-	ensureSymbolicPoint(a); ensureSymbolicPoint(b); ensureSymbolicPoint(c); ensureSymbolicPoint(d);
-	const P = pointCoords(pid);
-	const C1 = pointCoords(a); const E1 = pointCoords(b);
-	const C2 = pointCoords(c); const E2 = pointCoords(d);
-	if (!C1 || !E1 || !C2 || !E2) {
-		const expr = { x: `(arc(${a},${b})∩arc(${c},${d}))x`, y: `(arc(${a},${b})∩arc(${c},${d}))y` };
-		addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, expr, [`${a}A${b}`, `${c}A${d}`]);
-		return expr;
-	}
-	// numeric intersection using known formula (from earlier code)
-	const x0 = C1.x, y0 = C1.y, r0 = Math.hypot(E1.x - C1.x, E1.y - C1.y);
-	const x1 = C2.x, y1 = C2.y, r1 = Math.hypot(E2.x - C2.x, E2.y - C2.y);
-	const dx = x1 - x0, dy = y1 - y0;
-	const dist = Math.hypot(dx, dy);
-	if (dist > (r0 + r1) || dist < Math.abs(r0 - r1) || dist === 0) {
-		const expr = { x: `(arc(${a},${b})∩arc(${c},${d}))x`, y: `(arc(${a},${b})∩arc(${c},${d}))y` };
-		addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, expr, [`${a}A${b}`, `${c}A${d}`]);
-		return expr;
-	}
-	const A = ((r0*r0) - (r1*r1) + (dist*dist)) / (2*dist);
-	const x2 = x0 + (dx * A / dist);
-	const y2 = y0 + (dy * A / dist);
-	const h = Math.sqrt(Math.max(0, r0*r0 - A*A));
-	const rx = -dy * (h / dist);
-	const ry = dx * (h / dist);
-	const p1 = { x: x2 + rx, y: y2 + ry };
-	const p2 = { x: x2 - rx, y: y2 - ry };
-	// build symbolic expressions
-	const sx_x0 = _getSymCoord(a,'x'), sx_y0 = _getSymCoord(a,'y');
-	const sx_r0sq = `((${_getSymCoord(b,'x')} - ${sx_x0})^2 + (${_getSymCoord(b,'y')} - ${sx_y0})^2)`;
-	const sx_x1 = _getSymCoord(c,'x'), sx_y1 = _getSymCoord(c,'y');
-	const sx_r1sq = `((${_getSymCoord(d,'x')} - ${sx_x1})^2 + (${_getSymCoord(d,'y')} - ${sx_y1})^2)`;
-	const sx_dx = `(${sx_x1} - ${sx_x0})`; const sx_dy = `(${sx_y1} - ${sx_y0})`;
-	const sx_d = `sqrt((${sx_dx})^2 + (${sx_dy})^2)`;
-	const sx_A = `(((${sx_r0sq}) - (${sx_r1sq}) + (${sx_d})^2)/(2*${sx_d}))`;
-	const sx_x2 = `(${sx_x0} + (${sx_dx})*(${sx_A})/(${sx_d}))`;
-	const sx_y2 = `(${sx_y0} + (${sx_dy})*(${sx_A})/(${sx_d}))`;
-	const sx_h = `sqrt(max(0, (${sx_r0sq}) - (${sx_A})^2))`;
-	const sx_rx = `(-(${sx_dy})*(${sx_h})/(${sx_d}))`;
-	const sx_ry = `(${sx_dx}*(${sx_h})/(${sx_d}))`;
-	const expr1 = { x: `(${sx_x2}) + (${sx_rx})`, y: `(${sx_y2}) + (${sx_ry})` };
-	const expr2 = { x: `(${sx_x2}) - (${sx_rx})`, y: `(${sx_y2}) - (${sx_ry})` };
-	let chosen = expr1;
-	if (P) {
-		const d1 = Math.hypot(P.x - p1.x, P.y - p1.y);
-		const d2 = Math.hypot(P.x - p2.x, P.y - p2.y);
-		chosen = (d2 < d1) ? expr2 : expr1;
-	}
-	addPointDependency(pid, `arc(${a},${b}) ∩ arc(${c},${d})`, chosen, [`${a}A${b}`, `${c}A${d}`]);
-	return chosen;
+function intersectArcArc(pid, aCenter, aEdge, bCenter, bEdge) { // engine ordering relied on
+	const hA = makeArcHash(aCenter, aEdge);
+	const hB = makeArcHash(bCenter, bEdge);
+
+	const desc = `A(${aCenter},${aEdge}) ∩ A(${bCenter},${bEdge})`;
+	addPointParentSkeleton(pid, desc, [hA, hB], "intersection");
+	return null;
 }
 
 // Unused Helper to collect matching pointDependencies for this object hash, keep for now
@@ -562,14 +489,91 @@ function describeIntersectionFromObjects(pid, objects) {
 				else if (type1 === 'arc' && type2 === 'line') expr = intersectArcLine(pid, a1, b1, a2, b2);
 				else if (type1 === 'line' && type2 === 'arc') expr = intersectArcLine(pid, a2, b2, a1, b1);
 				else if (type1 === 'arc' && type2 === 'arc') expr = intersectArcArc(pid, a1, b1, a2, b2);
-				 // attach parents to pointDependencies
-				pointDependencies[pid].parents = [h1, h2];
-				return { pid, parents: [h1, h2], expr };
+				// ensure we have a skeleton; if not, create fallback
+				if (!pointDependencies[pid] || !pointDependencies[pid].parents || pointDependencies[pid].parents.length === 0) {
+					// fallback: write parents from objects array (objects order should be the two hashes)
+					console.warn("fallback: write parents from objects array");
+					const fallbackParents = objects.map(o => String(o)).slice(0, 2);
+					addPointParentSkeleton(pid, `fallback ${fallbackParents.join(',')}`, fallbackParents, "intersection");
+				}
 			}
 		}
 	}
 	console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
 	return null;
+}
+
+function ensureExpr(pid) {
+	const pd = pointDependencies[pid];
+	if (!pd) return null;
+	if (pd.expr) return pd.expr; // already computed
+
+	// 1) try special-case: collinear -> no expr (or derive from base)
+	if (pd.type === 'collinear') {
+		// no safe algebraic expr (den==0). Keep expr null or derive from collinearBase if available.
+		if (pd.meta?.collinearBase && pointDependenciesFor(pd.meta.collinearBase)?.expr) {
+			// optional: try to reuse base expr (advanced)
+			return pointDependencies[pid].expr = null;
+		}
+		return null;
+	}
+
+	// 2) prefer an engine-aware _getSymCoord(pid) if it exists
+	if (typeof window._getSymCoord === 'function') {
+		try {
+			const sym = window._getSymCoord(pid); // expected {x: '...', y: '...'} or similar
+			if (sym) {
+				pd.expr = { x: String(sym.x), y: String(sym.y) };
+				return pd.expr;
+			}
+		} catch (e) {
+			console.debug("ensureExpr: _getSymCoord failed for p", pid, e);
+		}
+	}
+
+	// 3) fallback: attempt a simple per-type symbolic build (placeholder)
+	// Example for line-line: try to build symbolic expression from parents' expr
+	// This is domain-specific and can be implemented later.
+	pd.expr = computeSymbolicForPid(pid);
+	return pd.expr;
+}
+
+function pointDependenciesFor(hash) {
+	// helper: find a representative point in that object that has expr
+	const dep = dependencyMap[hash];
+	if (!dep) return null;
+	for (const pid of dep.depends || []) {
+		if (pointDependencies[pid] && pointDependencies[pid].expr) return pointDependencies[pid];
+	}
+	return null;
+}
+
+function chooseExprForPid(pid, expr1, expr2) {
+  // numeric positions
+  const P = window.points?.[pid];
+  if (!P) return expr1; // fallback
+  // Evaluate expr1/expr2 numerically (you need a numeric evaluator for the expr type)
+  // If expr1/2 are nerdamer objects or strings, you can evaluate them:
+  try {
+    // example: if expr1.x is a string expression, use nerdamer or simple eval =>
+    const x1 = (typeof expr1.x === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr1.x).evaluate().text()) : Number(expr1.x);
+    const y1 = (typeof expr1.y === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr1.y).evaluate().text()) : Number(expr1.y);
+    const x2 = (typeof expr2.x === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr2.x).evaluate().text()) : Number(expr2.x);
+    const y2 = (typeof expr2.y === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr2.y).evaluate().text()) : Number(expr2.y);
+
+    const d1 = Math.hypot(P.x - x1, P.y - y1);
+    const d2 = Math.hypot(P.x - x2, P.y - y2);
+    return (d2 < d1) ? expr2 : expr1;
+  } catch (e) {
+    // fallback: return expr1
+    return expr1;
+  }
+}
+
+function ensureExprForHash(hash) {
+  const dep = dependencyMap[hash];
+  if (!dep || !dep.depends) return;
+  for (const pid of dep.depends) ensureExpr(pid);
 }
 
 // --- hooks ---
