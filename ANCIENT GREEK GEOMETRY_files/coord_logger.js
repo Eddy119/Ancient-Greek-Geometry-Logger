@@ -219,6 +219,7 @@ function _getSymCoord(id, coord) {
 
 	} catch (e) {
 		console.debug('_getSymCoord: ensureExpr failed for p' + id, e);
+	}
 }
 
 // numeric test
@@ -331,7 +332,6 @@ function formatChange(ch, actionId) {
 	}
 
 	return null;
-}
 }
 
 // --- helpers ---
