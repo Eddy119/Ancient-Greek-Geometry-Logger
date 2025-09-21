@@ -560,7 +560,7 @@ window.makeline = function(p1, p2, spec) {
     const beforeSet = snapshotPointIds();
 	const aId = (p1 && typeof p1 === 'object' && typeof p1.id !== 'undefined') ? Number(p1.id) : Number(p1);
 	const bId = (p2 && typeof p2 === 'object' && typeof p2.id !== 'undefined') ? Number(p2.id) : Number(p2);
-	const hash = `${aId}L${bId}`;
+	const hash = String(`${aId}L${bId}`);
 	console.debug(`makeline: snapshot before has ${beforeSet.size} points`);
     const res = orig_makeline.apply(this, arguments);
 	console.debug(`makeline: created pending object ${hash}`);
@@ -574,7 +574,7 @@ window.makearc = function(c, e, r, spec) {
     const beforeSet = snapshotPointIds();
 	const aId = (c && typeof c === 'object' && typeof c.id !== 'undefined') ? Number(c.id) : Number(c);
 	const bId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
-	const hash = `${aId}L${bId}`;
+	const hash = String(`${aId}L${bId}`);
 	console.debug(`makearc: snapshot before has ${beforeSet.size} points`);
     const res = orig_makearc.apply(this, arguments);
 	console.debug(`makearc: created pending object ${hash}`);
@@ -614,11 +614,23 @@ changes.record = function(finished) {
         // snapshot after engine finalized points
         const afterAll = snapshotPointIds();
         console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
+		console.debug(pendingObjects);
 
         // process each pending object (FIFO)
         for (const pend of pendingObjects) {
             try {
-                // compute new pids for this pending object
+				if (!pend || !pend.hash) return r;
+
+				console.debug("Record patch: processing object", pend.hash, pend.type);
+				if (!dependencyMap[pend.hash]) { // temp seeding
+					dependencyMap[pend.hash] = {
+						type: pend.type,
+						depends: [], // may be incomplete
+						obj: null,
+					};
+				}
+
+				// compute new pids for this pending object
                 const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
                 console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 
@@ -652,10 +664,21 @@ changes.record = function(finished) {
                     }
                 }
 
+				// // old gather ancestors of this new object (for reference)
+				// const ancestorPoints = collectAncestors(pend.hash);
+				// console.debug("Ancestor points for", pend.hash, ancestorPoints);
+
+				// // only log dependencies for ancestor points
+				// for (const pid of ancestorPoints) {
+				// 	const objects = [pend.hash];
+				// 	console.debug(`Record patch: describing intersection for p${pid} from object ${pend.hash}`);
+				// 	describeIntersectionFromObjects(Number(pid), objects);
+				// }
+
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
                     try { const simplifiedList = simplifyDependenciesForHash(pend.hash); console.debug(`simplified deps for ${pend.hash}:`, simplifiedList); } catch(e){ console.debug('simplifyDependenciesForHash failed', e); }
-                    try { const cached = cacheLengthForHash(pend.hash); console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached); } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
+                    try { const cached = cacheLengthForHash(pend.hash); /*console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached);*/ } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
                 }
             } catch (err) {
                 console.error('Error resolving pending object', pend, err);
@@ -665,21 +688,6 @@ changes.record = function(finished) {
         // clear pendingObjects after processing
         pendingObjects = [];
     }
-
-    // keep existing pendingPids compatibility (if you still use it elsewhere)
-    // if (Array.isArray(pendingPids) && pendingPids.length) {
-    //     // resolve any plain pendingPids (older code paths) using full objects list
-    //     const objects = collectAllObjectsWith();
-	// 	console.log("RECORD: pendingPids.length is ", pendingPids.length);
-    //     for (const pid of pendingPids) {
-    //         console.debug('Record: resolving legacy pending pid', pid);
-    //         describeIntersectionFromObjects(Number(pid), objects); // unneccesary now it seems, keep for now
-    //         if (pointDependencies[pid]) {
-    //             try { simplifyPoint(pid); console.debug(`Record: simplified legacy p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for legacy pid', pid, e); }
-    //         }
-    //     }
-    //     pendingPids = [];
-    // }
 
     // rebuild log now that dependencies added
     addLog();
@@ -691,24 +699,7 @@ changes.replay = function() {
 	clearLog();
 	lastProcessedJump = 0;
 	const res = orig_replay.apply(this, arguments);
-	// flush any pending (from replay)
-	// console.log("REPLAY: pendingPids.length should always be 0, but is ", pendingPids.length);
-	// if (pendingPids.length) {
-	// 	let objects = [];
-	// 	for (let k = 0; k < changes.length; k++) {
-	// 		const ch = changes[k];
-	// 		if (ch?.type === 'arc') objects.push(`${ch.a}A${ch.b}`);
-	// 		if (ch?.type === 'realline') objects.push(`${ch.a}L${ch.b}`);
-	// 	}
-	// 	pendingPids.forEach(pid => {
-	// 		console.debug(`Replay: resolving p${pid} against`, objects);
-	// 		describeIntersectionFromObjects(pid, objects);
-	// 		if (pointDependencies[pid]) {
-	// 			try { simplifyPoint(pid); console.debug(`Replay: simplified p${pid}`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for replay pid', pid, e); }
-	// 		}
-	// 	});
-		pendingPids = [];
-	// }
+	pendingPids = [];
 	// cache lengths/radii for all dependencyMap entries (best-effort)
 	for (let h of Object.keys(dependencyMap)) {
 		try { cacheLengthForHash(h); } catch(e) { console.debug('cacheLengthForHash error for', h, e); }
@@ -792,4 +783,40 @@ function addLog() {
 		lastProcessedJump = currentLastJump;
 		renderLog();
 	}
+}
+
+// --- uncalled old recursive ancestor collection for reference ---
+function collectAncestors(hash, visited = new Set()) {
+	if (visited.has(hash)) return [];
+	visited.add(hash);
+
+	const dep = dependencyMap[hash];
+	if (!dep) {
+		console.debug(
+			`collectAncestors: no dependency for ${hash}`,
+			"dependencyMap[hash] is undefined",
+			dependencyMap,
+			dependencyMap[hash]
+		);
+		return [];
+	}
+
+	// Always split the hash into numeric point IDs
+	const ids = hash.split(/A|L/).map(Number).filter(n => !isNaN(n));
+	let result = [...ids]; // seed with point IDs
+
+	// Traverse each point's parents recursively
+	for (const pid of ids) {
+		const pDep = pointDependencies[pid];
+		if (pDep?.parents) {
+			for (const parentHash of pDep.parents) {
+				console.debug(
+					`collectAncestors: walking up from point ${pid} to parent object ${parentHash}`
+				);
+				result.push(...collectAncestors(parentHash, visited));
+			}
+		}
+	}
+
+	return result;
 }
