@@ -223,17 +223,6 @@ function areCollinearPoints(a, b, c, d) {
 	return Math.abs(area1) < 1e-6 && Math.abs(area2) < 1e-6;
 }
 
-function findCollinearBaseLine(hash, a, b) {
-	// Try to find any existing line that shares collinearity
-	for (let [otherHash, other] of Object.entries(dependencyMap)) {
-		if (otherHash === hash) continue;
-		if (other.type !== 'line' || !other.depends || other.depends.length !== 2) continue;
-		const [c, d] = other.depends;
-		if (areCollinearPoints(a, b, c, d)) return otherHash;
-	}
-	return null;
-}
-
 function intersectLineLine(pid, a, b, c, d) {
 	const h1 = makeLineHash(a, b);
 	const h2 = makeLineHash(c, d);
@@ -274,24 +263,6 @@ function intersectArcArc(pid, aCenter, aEdge, bCenter, bEdge) { // engine orderi
 	const desc = `A(${aCenter},${aEdge}) ∩ A(${bCenter},${bEdge})`;
 	addPointParentSkeleton(pid, desc, [hA, hB], "intersection");
 	return null;
-}
-
-// Unused Helper to collect matching pointDependencies for this object hash, keep for now
-function collectIntersectionsForHash(targetHash) {
-	const intersections = [];
-	for (let pid of Object.keys(pointDependencies)) {
-		const info = pointDependencies[pid];
-		let matches = false;
-		if (info && Array.isArray(info.parents)) {
-			matches = info.parents.includes(targetHash);
-		} else if (info && typeof info.desc === 'string') {
-			matches = info.desc.includes(targetHash);
-		}
-		if (matches) {
-			intersections.push({ pid, info });
-		}
-	}
-	return intersections;
 }
 
 function formatPoint(pid) {
@@ -703,16 +674,6 @@ function collectAllObjectsWith(hashToPrepend) {
     return objects;
 }
 
-// tolerant coordinate lookup (used as fallback in replay)
-function findPidByCoordsNearby(x, y, candidates, tol = 1e-5) {
-    for (let pid of candidates) {
-        const c = pointCoords(pid);
-        if (!c) continue;
-        if (Math.abs(c.x - x) <= tol && Math.abs(c.y - y) <= tol) return Number(pid);
-    }
-    return null;
-}
-
 // ---- changes.record flush: compute afterSet, resolve pendingObjects by diffing against their beforeIds ----
 const orig_record = changes.record;
 changes.record = function(finished) {
@@ -891,40 +852,4 @@ function addLog() {
 		lastProcessedJump = currentLastJump;
 		renderLog();
 	}
-}
-
-// --- uncalled old recursive ancestor collection for reference ---
-function collectAncestors(hash, visited = new Set()) {
-	if (visited.has(hash)) return [];
-	visited.add(hash);
-
-	const dep = dependencyMap[hash];
-	if (!dep) {
-		console.debug(
-			`collectAncestors: no dependency for ${hash}`,
-			"dependencyMap[hash] is undefined",
-			dependencyMap,
-			dependencyMap[hash]
-		);
-		return [];
-	}
-
-	// Always split the hash into numeric point IDs
-	const ids = hash.split(/A|L/).map(Number).filter(n => !isNaN(n));
-	let result = [...ids]; // seed with point IDs
-
-	// Traverse each point's parents recursively
-	for (const pid of ids) {
-		const pDep = pointDependencies[pid];
-		if (pDep?.parents) {
-			for (const parentHash of pDep.parents) {
-				console.debug(
-					`collectAncestors: walking up from point ${pid} to parent object ${parentHash}`
-				);
-				result.push(...collectAncestors(parentHash, visited));
-			}
-		}
-	}
-
-	return result;
 }
