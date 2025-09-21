@@ -515,7 +515,7 @@ function exprIntersectLineLine(pid, h1, h2) {
 
 	// determinant formula
 	const denom = `(${Ax}-${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}-${Dx})`;
-	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${D.x}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
+	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
 	const y = `((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
 
 	return { x, y };
