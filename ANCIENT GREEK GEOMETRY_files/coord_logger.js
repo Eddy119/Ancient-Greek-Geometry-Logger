@@ -560,7 +560,7 @@ window.makeline = function(p1, p2, spec) {
     const beforeSet = snapshotPointIds();
 	const aId = (p1 && typeof p1 === 'object' && typeof p1.id !== 'undefined') ? Number(p1.id) : Number(p1);
 	const bId = (p2 && typeof p2 === 'object' && typeof p2.id !== 'undefined') ? Number(p2.id) : Number(p2);
-	const hash = `${aId}L${bId}`;
+	const hash = String(`${aId}L${bId}`);
 	console.debug(`makeline: snapshot before has ${beforeSet.size} points`);
     const res = orig_makeline.apply(this, arguments);
 	console.debug(`makeline: created pending object ${hash}`);
@@ -574,7 +574,7 @@ window.makearc = function(c, e, r, spec) {
     const beforeSet = snapshotPointIds();
 	const aId = (c && typeof c === 'object' && typeof c.id !== 'undefined') ? Number(c.id) : Number(c);
 	const bId = (e && typeof e === 'object' && typeof e.id !== 'undefined') ? Number(e.id) : Number(e);
-	const hash = `${aId}L${bId}`;
+	const hash = String(`${aId}L${bId}`);
 	console.debug(`makearc: snapshot before has ${beforeSet.size} points`);
     const res = orig_makearc.apply(this, arguments);
 	console.debug(`makearc: created pending object ${hash}`);
@@ -614,6 +614,7 @@ changes.record = function(finished) {
         // snapshot after engine finalized points
         const afterAll = snapshotPointIds();
         console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
+		console.debug(pendingObjects);
 
         // process each pending object (FIFO)
         for (const pend of pendingObjects) {
@@ -621,6 +622,13 @@ changes.record = function(finished) {
 				if (!pend || !pend.hash) return r;
 
 				console.debug("Record patch: processing object", pend.hash, pend.type);
+				if (!dependencyMap[pend.hash]) { // temp seeding
+					dependencyMap[pend.hash] = {
+						type: pend.type,
+						depends: [], // may be incomplete
+						obj: null,
+					};
+				}
 				// gather ancestors of this new object
 				const ancestorPoints = collectAncestors(pend.hash);
 				console.debug("Ancestor points for", pend.hash, ancestorPoints);
@@ -635,7 +643,7 @@ changes.record = function(finished) {
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
                     try { const simplifiedList = simplifyDependenciesForHash(pend.hash); console.debug(`simplified deps for ${pend.hash}:`, simplifiedList); } catch(e){ console.debug('simplifyDependenciesForHash failed', e); }
-                    try { const cached = cacheLengthForHash(pend.hash); console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached); } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
+                    try { const cached = cacheLengthForHash(pend.hash); /*console.debug(`cacheLengthForHash(${pend.hash}) ->`, cached);*/ } catch(e){ console.debug('cacheLengthForHash failed for', pend.hash, e); }
                 }
             } catch (err) {
                 console.error('Error resolving pending object', pend, err);
@@ -679,6 +687,7 @@ changes.redo = function() {
         // we don't always know a single hash here; but push a generic pending marker so record will collect them
         pendingObjects.push({ hash: null, beforeIds: beforeIds, type: 'redo' });
     }
+	addLog();
     return r;
 };
 
@@ -747,20 +756,32 @@ function collectAncestors(hash, visited = new Set()) {
 	visited.add(hash);
 
 	const dep = dependencyMap[hash];
-	if (!dep) return [];
+	if (!dep) {
+		console.debug(
+			`collectAncestors: no dependency for ${hash}`,
+			"dependencyMap[hash] is undefined",
+			dependencyMap,
+			dependencyMap[hash]
+		);
+		return [];
+	}
 
-	let result = dep.depends.slice();
+	// Always split the hash into numeric point IDs
+	const ids = hash.split(/A|L/).map(Number).filter(n => !isNaN(n));
+	let result = [...ids]; // seed with point IDs
 
-	for (const pid of dep.depends) {
+	// Traverse each point's parents recursively
+	for (const pid of ids) {
 		const pDep = pointDependencies[pid];
 		if (pDep?.parents) {
 			for (const parentHash of pDep.parents) {
-				console.debug(`collectAncestors: walking up from point ${pid} to parent object ${parentHash}`);
+				console.debug(
+					`collectAncestors: walking up from point ${pid} to parent object ${parentHash}`
+				);
 				result.push(...collectAncestors(parentHash, visited));
 			}
 		}
 	}
-
 
 	return result;
 }
