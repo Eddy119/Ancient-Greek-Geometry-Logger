@@ -510,23 +510,23 @@ function exprIntersectLineLine(pid, h1, h2) {
 	const [c, d] = h2.split("L").map(Number);
 
 	// use _getSymCoord for coords
-	const A = _getSymCoord(a), B = _getSymCoord(b);
-	const C = _getSymCoord(c), D = _getSymCoord(d);
+	const Ax = _getSymCoord(a,'x'), Ay = _getSymCoord(a,'y'), Bx = _getSymCoord(b,'x'), By = _getSymCoord(b,'y');
+	const Cx = _getSymCoord(c,'x'), Cy = _getSymCoord(c,'y'), Dx = _getSymCoord(d,'x'), Dy = _getSymCoord(d,'y');
 
 	// determinant formula
-	const denom = `(${A.x}-${B.x})*(${C.y}-${D.y}) - (${A.y}-${B.y})*(${C.x}-${D.x})`;
-	const x = `((${A.x}*${B.y}-${A.y}*${B.x})*(${C.x}-${D.x}) - (${A.x}-${B.x})*(${C.x}*${D.y}-${C.y}*${D.x})) / ${denom}`;
-	const y = `((${A.x}*${B.y}-${A.y}*${B.x})*(${C.y}-${D.y}) - (${A.y}-${B.y})*(${C.x}*${D.y}-${C.y}*${D.x})) / ${denom}`;
+	const denom = `(${Ax}-${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}-${Dx})`;
+	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${D.x}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
+	const y = `((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
 
 	return { x, y };
 }
 
 function exprArcArc(a, b, c, d, choice) {
 	// circle (a,b) ∩ circle (c,d)
-	const ax = getSymExpr(a, 'x'), ay = getSymExpr(a, 'y');
-	const bx = getSymExpr(b, 'x'), by = getSymExpr(b, 'y');
-	const cx = getSymExpr(c, 'x'), cy = getSymExpr(c, 'y');
-	const dx = getSymExpr(d, 'x'), dy = getSymExpr(d, 'y');
+	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
+	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
+	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+	const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
 
 	// squared radii
 	const r1sq = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
@@ -562,10 +562,10 @@ function exprArcArc(a, b, c, d, choice) {
 
 function exprArcLine(a, b, c, d, choice) {
 	// circle (a,b) ∩ line (c,d)
-	const ax = getSymExpr(a, 'x'), ay = getSymExpr(a, 'y');
-	const bx = getSymExpr(b, 'x'), by = getSymExpr(b, 'y');
-	const cx = getSymExpr(c, 'x'), cy = getSymExpr(c, 'y');
-	const dx_ = getSymExpr(d, 'x'), dy_ = getSymExpr(d, 'y');
+	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
+	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
+	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+	const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
 
 	// radius squared
 	const r2 = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
