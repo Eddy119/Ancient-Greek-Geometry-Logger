@@ -746,13 +746,10 @@ function collectAncestors(hash, visited = new Set()) {
 	if (visited.has(hash)) return [];
 	visited.add(hash);
 
-
 	const dep = dependencyMap[hash];
 	if (!dep) return [];
 
-
 	let result = dep.depends.slice();
-
 
 	for (const pid of dep.depends) {
 		const pDep = pointDependencies[pid];
