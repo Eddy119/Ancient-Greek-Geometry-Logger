@@ -516,9 +516,9 @@ function ensureExpr(pid) {
 		(obj1.includes("A") && obj2.includes("L")) ||
 		(obj1.includes("L") && obj2.includes("A"))
 	) {
-		expr = exprIntersectArcLine(pid, obj1, obj2);
+		expr = exprArcLine(pid, obj1, obj2);
 	} else if (obj1.includes("A") && obj2.includes("A")) {
-		expr = exprIntersectArcArc(pid, obj1, obj2);
+		expr = exprArcArc(pid, obj1, obj2);
 	} else {
 		console.error(`ensureExpr: unrecognized parent combo for p${pid}`, obj1, obj2);
 		return;
@@ -548,6 +548,78 @@ function exprIntersectLineLine(pid, h1, h2) {
 	const y = `((${A.x}*${B.y}-${A.y}*${B.x})*(${C.y}-${D.y}) - (${A.y}-${B.y})*(${C.x}*${D.y}-${C.y}*${D.x})) / ${denom}`;
 
 	return { x, y };
+}
+
+function exprArcArc(a, b, c, d, choice) {
+	// circle (a,b) ∩ circle (c,d)
+	const ax = getSymExpr(a, 'x'), ay = getSymExpr(a, 'y');
+	const bx = getSymExpr(b, 'x'), by = getSymExpr(b, 'y');
+	const cx = getSymExpr(c, 'x'), cy = getSymExpr(c, 'y');
+	const dx = getSymExpr(d, 'x'), dy = getSymExpr(d, 'y');
+
+	// squared radii
+	const r1sq = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
+	const r2sq = `(${dx} - ${cx})^2 + (${dy} - ${cy})^2`;
+
+	// line between centers
+	const dxac = `(${cx} - ${ax})`, dyac = `(${cy} - ${ay})`;
+	const d2 = `${dxac}^2 + ${dyac}^2`;
+
+	// base point along line connecting centers
+	const t = `( (${r1sq} - ${r2sq} + ${d2}) / (2*(${d2})) )`;
+	const px = `${ax} + ${t}*(${dxac})`;
+	const py = `${ay} + ${t}*(${dyac})`;
+
+	// distance from base point to intersection
+	const hsq = `${r1sq} - ${t}^2*(${d2})`;
+	const h = `sqrt(${hsq})`;
+
+	// perpendicular offset
+	const rx = `-${dyac}`, ry = dxac;
+	const mag = `sqrt(${d2})`;
+
+	let ix, iy;
+	if (choice === 0) {
+		ix = `${px} + ${h}*(${rx})/${mag}`;
+		iy = `${py} + ${h}*(${ry})/${mag}`;
+	} else {
+		ix = `${px} - ${h}*(${rx})/${mag}`;
+		iy = `${py} - ${h}*(${ry})/${mag}`;
+	}
+	return { x: ix, y: iy };
+}
+
+function exprArcLine(a, b, c, d, choice) {
+	// circle (a,b) ∩ line (c,d)
+	const ax = getSymExpr(a, 'x'), ay = getSymExpr(a, 'y');
+	const bx = getSymExpr(b, 'x'), by = getSymExpr(b, 'y');
+	const cx = getSymExpr(c, 'x'), cy = getSymExpr(c, 'y');
+	const dx_ = getSymExpr(d, 'x'), dy_ = getSymExpr(d, 'y');
+
+	// radius squared
+	const r2 = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
+
+	// line direction
+	const vx = `(${dx_} - ${cx})`, vy = `(${dy_} - ${cy})`;
+
+	// quadratic coefficients for intersection
+	const A = `${vx}^2 + ${vy}^2`;
+	const B = `2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) )`;
+	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
+
+	const disc = `${B}^2 - 4*${A}*${C}`;
+	const sqrtDisc = `sqrt(${disc})`;
+
+	let t;
+	if (choice === 0) {
+		t = `(-${B} + ${sqrtDisc}) / (2*${A})`;
+	} else {
+		t = `(-${B} - ${sqrtDisc}) / (2*${A})`;
+	}
+
+	const ix = `${cx} + ${t}*${vx}`;
+	const iy = `${cy} + ${t}*${vy}`;
+	return { x: ix, y: iy };
 }
 
 function pointDependenciesFor(hash) {
