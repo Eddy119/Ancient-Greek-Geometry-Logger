@@ -384,18 +384,6 @@ function simplifyExprString(exprStr) {
 	}
 }
 
-function simplifyPoint(pid, options = { force: false }) {
-	// const info = pointDependencies[pid];
-	// if (!info || !info.expr) return null;
-	// if (info.simplified && !options.force) return info.simplified;
-	// const sx = info.expr.x;
-	// const sy = info.expr.y;
-	// const sx_s = simplifyExprString(sx);
-	// const sy_s = simplifyExprString(sy);
-	// info.simplified = { x: sx_s, y: sy_s };
-	// return info.simplified;
-}
-
 function lengthBetweenSymbolic(a, b) {
 	// return symbolic expression (unsimplified) for distance between a and b
 	const ax = _getSymCoord(a,'x'), ay = _getSymCoord(a,'y');
