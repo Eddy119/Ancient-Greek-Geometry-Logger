@@ -209,22 +209,16 @@ if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 // Updated: produce symbolic expressions (strings) and attach correct pointDependencies entry for the given pid.
 
 function _getSymCoord(id, coord) {
-	// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
-	if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
-
-	// Try to compute the expression lazily if we have a skeleton for this point
 	try {
-		if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
-			// attempt to ensure the expression for this point (will recurse to parents as needed)
-			ensureExpr(Number(id));
-			if (pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
-		}
+		// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
+		if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
+
+		// do NOT auto-trigger ensureExpr here — return symbolic placeholder or pre-seeded symbolicPoints
+		if (symbolicPoints[id] && typeof symbolicPoints[id][coord] !== 'undefined') return symbolicPoints[id][coord];
+		return `p${id}${coord}`;
+
 	} catch (e) {
 		console.debug('_getSymCoord: ensureExpr failed for p' + id, e);
-	}
-
-	if (symbolicPoints[id] && typeof symbolicPoints[id][coord] !== 'undefined') return symbolicPoints[id][coord];
-	return `p${id}${coord}`;
 }
 
 // numeric test
@@ -351,8 +345,11 @@ function pointCoords(pid) {
 }
 
 // --- Symbolic simplification helpers (Nerdamer integration) ---
+let USE_NERDAMER = false;
+
 function simplifyExprString(exprStr) {
-	// wrapper around global nerdamer; returns simplified string or original on error
+	// temporary: skip nerdamer-based simplification if disabled
+	if (!USE_NERDAMER) return exprStr;
 	try {
 		if (typeof nerdamer === 'undefined') {
 			console.warn('simplifyExprString: nerdamer not available');
@@ -642,26 +639,88 @@ function pointDependenciesFor(hash) {
 	return null;
 }
 
-function chooseExprForPid(pid, expr1, expr2) {
-  // numeric positions
-  const P = window.points?.[pid];
-  if (!P) { console.warn(`no numeric position for pid ${pid}`); return expr1; } // fallback
-  // Evaluate expr1/expr2 numerically (you need a numeric evaluator for the expr type)
-  // If expr1/2 are nerdamer objects or strings, you can evaluate them:
-  try {
-    // example: if expr1.x is a string expression, use nerdamer or simple eval =>
-    const x1 = (typeof expr1.x === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr1.x).evaluate().text()) : Number(expr1.x);
-    const y1 = (typeof expr1.y === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr1.y).evaluate().text()) : Number(expr1.y);
-    const x2 = (typeof expr2.x === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr2.x).evaluate().text()) : Number(expr2.x);
-    const y2 = (typeof expr2.y === 'string' && typeof nerdamer !== 'undefined') ? Number(nerdamer(expr2.y).evaluate().text()) : Number(expr2.y);
+// Numeric intersection helpers (return array of {x,y})
+function numericIntersectArcArc(a,b,c,d) {
+	const A = pointCoords(a), B = pointCoords(b), C = pointCoords(c), D = pointCoords(d);
+	if (!A||!B||!C||!D) return [];
+	const x0 = A.x, y0 = A.y, r0 = Math.hypot(B.x - A.x, B.y - A.y);
+	const x1 = C.x, y1 = C.y, r1 = Math.hypot(D.x - C.x, D.y - C.y);
+	const dx = x1 - x0, dy = y1 - y0;
+	const dist = Math.hypot(dx, dy);
+	// no intersection or contained
+	if (dist > r0 + r1 + 1e-12) return [];
+	if (dist < Math.abs(r0 - r1) - 1e-12) return [];
+	if (dist < 1e-12 && Math.abs(r0 - r1) < 1e-12) return [];
+	const a_ = (r0*r0 - r1*r1 + dist*dist) / (2*dist);
+	const x2 = x0 + dx * (a_ / dist);
+	const y2 = y0 + dy * (a_ / dist);
+	let h2 = r0*r0 - a_*a_;
+	if (h2 < -1e-12) return [];
+	h2 = Math.max(0, h2);
+	const h = Math.sqrt(h2);
+	const rx = -dy * (h / dist);
+	const ry = dx * (h / dist);
+	const p1 = { x: x2 + rx, y: y2 + ry };
+	const p2 = { x: x2 - rx, y: y2 - ry };
+	if (h < 1e-12) return [p1];
+	return [p1, p2];
+}
 
-    const d1 = Math.hypot(P.x - x1, P.y - y1);
-    const d2 = Math.hypot(P.x - x2, P.y - y2);
-    return (d2 < d1) ? expr2 : expr1;
+function numericIntersectArcLine(a,b,c,d) {
+	const A = pointCoords(a), B = pointCoords(b), E1 = pointCoords(c), E2 = pointCoords(d);
+	if (!A||!B||!E1||!E2) return [];
+	const cx = A.x, cy = A.y, r = Math.hypot(B.x - A.x, B.y - A.y);
+	const ex = E1.x, ey = E1.y, lx = E2.x, ly = E2.y;
+	const vx = lx - ex, vy = ly - ey;
+	const fx = ex - cx, fy = ey - cy;
+	const aa = vx*vx + vy*vy;
+	const bb = 2*(fx*vx + fy*vy);
+	const cc = fx*fx + fy*fy - r*r;
+	const disc = bb*bb - 4*aa*cc;
+	if (disc < -1e-12) return [];
+	const sd = Math.sqrt(Math.max(0, disc));
+	// order: choose (+) first to match symbolic expr ordering in exprArcLine
+	const t_plus = (-bb + sd) / (2*aa);
+	const t_minus = (-bb - sd) / (2*aa);
+	const p_plus = { x: ex + t_plus*vx, y: ey + t_plus*vy };
+	const p_minus = { x: ex + t_minus*vx, y: ey + t_minus*vy };
+	if (Math.abs(t_plus - t_minus) < 1e-12) return [p_plus];
+	return [p_plus, p_minus];
+}
+
+function chooseExprForPid(pid, expr1, expr2) {
+  // numeric chooser: compute numeric intersection candidates from parents and pick the closest
+  const P = window.points?.[pid];
+  if (!P) { console.warn(`no numeric position for pid ${pid}`); return expr1; }
+  const dep = pointDependencies[pid];
+  if (!dep || !dep.parents || dep.parents.length < 2) return expr1;
+  const [obj1, obj2] = dep.parents;
+  let candidates = [];
+  try {
+    if (obj1.includes('A') && obj2.includes('A')) {
+      const [a1,b1] = obj1.split(/A|L/).map(Number);
+      const [a2,b2] = obj2.split(/A|L/).map(Number);
+      candidates = numericIntersectArcArc(a1,b1,a2,b2);
+    } else {
+      let arcHash = obj1.includes('A') ? obj1 : obj2;
+      let lineHash = obj1.includes('L') ? obj1 : obj2;
+      const [ac, ae] = arcHash.split(/A|L/).map(Number);
+      const [lp1, lp2] = lineHash.split(/A|L/).map(Number);
+      candidates = numericIntersectArcLine(ac, ae, lp1, lp2);
+    }
   } catch (e) {
-    // fallback: return expr1
-    console.warn('chooseExprForPid error', e); return expr1;
+    console.warn('chooseExprForPid numeric intersection failed', e);
   }
+  if (!candidates || candidates.length === 0) return expr1;
+  let bestIdx = 0; let bestDist = Infinity;
+  for (let i = 0; i < candidates.length; i++) {
+    const q = candidates[i]; if (!q) continue;
+    const d = Math.hypot(P.x - q.x, P.y - q.y);
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  return (bestIdx === 1) ? expr2 : expr1;
+}
+
 }
 
 function ensureExprForHash(hash) {
@@ -851,6 +910,11 @@ changes.undo = function() {
 				console.debug(`Undo: removing p${pid} from pointDependencies`);
 				// remove from pointDependencies if present
 				delete pointDependencies[pid];
+				// remove symbolicPoints entry except p0/p1
+				try {
+					const pidStr = String(pid);
+					if (symbolicPoints && pidStr !== '0' && pidStr !== '1') delete symbolicPoints[pidStr];
+				} catch(e) { /* ignore */ }
 				// remove from jumpPointMap sets as well
 				if (window._jumpPointMap) {
 					for (let j of Object.keys(window._jumpPointMap)) {
