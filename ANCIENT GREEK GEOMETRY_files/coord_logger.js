@@ -332,6 +332,7 @@ function formatChange(ch, actionId) {
 
 	return null;
 }
+}
 
 // --- helpers ---
 function snapshotPointIds() {
@@ -719,8 +720,6 @@ function chooseExprForPid(pid, expr1, expr2) {
     if (d < bestDist) { bestDist = d; bestIdx = i; }
   }
   return (bestIdx === 1) ? expr2 : expr1;
-}
-
 }
 
 function ensureExprForHash(hash) {
