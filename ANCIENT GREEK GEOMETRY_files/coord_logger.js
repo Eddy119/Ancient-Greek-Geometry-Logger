@@ -69,7 +69,7 @@ function addPointDependency(pid, desc, expr, parents = [], type = "intersection"
 	}
 	if (!pointDependencies[pid]) pointDependencies[pid] = {};
 	if (pointDependencies[pid].type === "collinear") {
-		pointDependencies[pid].parents = new Set(parents);
+		pointDependencies[pid].parents = new Set(parents); // buggy, only records one parent?
 		pointDependencies[pid].type = type;
 		pointDependencies[pid].desc = `${type} of ${[...parents].join(", ")}`;
 	}
