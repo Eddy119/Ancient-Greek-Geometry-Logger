@@ -217,7 +217,11 @@ function _getSymCoord(id, coord) {
 			// ensureExpr(Number(id));
 		// }
 		// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
-		if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
+		if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') {
+			if (pointDependencies[id].simplified[coord]) {return pointDependencies[id].simplified[coord];}
+			else {console.warn('no simplified expr for p' + id); return pointDependencies[id].expr[coord];}
+			// return pointDependencies[id].expr[coord];
+		}
 
 		// do NOT auto-trigger ensureExpr here — return symbolic placeholder or pre-seeded symbolicPoints
 		if (symbolicPoints[id] && typeof symbolicPoints[id][coord] !== 'undefined') return symbolicPoints[id][coord];
@@ -560,8 +564,8 @@ function exprIntersectLineLine(h1, h2) {
 
 	// determinant formula
 	const denom = `(${Ax}-${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}-${Dx})`;
-	const x = simplifyExprString(`((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`);
-	const y = simplifyExprString(`((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`);
+	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
+	const y = `((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
 
 	return { x, y };
 }
@@ -596,11 +600,11 @@ function exprArcArc(a, b, c, d, choice) {
 
 	let ix, iy;
 	if (choice === 0) {
-		ix = simplifyExprString(`${px} + ${h}*(${rx})/${mag}`);
-		iy = simplifyExprString(`${py} + ${h}*(${ry})/${mag}`);
+		ix = `${px} + ${h}*(${rx})/${mag}`;
+		iy = `${py} + ${h}*(${ry})/${mag}`;
 	} else {
-		ix = simplifyExprString(`${px} - ${h}*(${rx})/${mag}`);
-		iy = simplifyExprString(`${py} - ${h}*(${ry})/${mag}`);
+		ix = `${px} - ${h}*(${rx})/${mag}`;
+		iy = `${py} - ${h}*(${ry})/${mag}`;
 	}
 	return { x: ix, y: iy };
 }
@@ -633,8 +637,9 @@ function exprArcLine(a, b, c, d, choice) {
 		t = `(-${B} - ${sqrtDisc}) / (2*${A})`;
 	}
 
-	const ix = simplifyExprString(`${cx} + ${t}*${vx}`);
-	const iy = simplifyExprString(`${cy} + ${t}*${vy}`);
+	const ix = `${cx} + ${t}*${vx}`;
+	const iy = `${cy} + ${t}*${vy}`;
+	// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
 	return { x: ix, y: iy };
 }
 
