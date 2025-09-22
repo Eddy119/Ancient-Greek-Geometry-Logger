@@ -348,7 +348,7 @@ function snapshotPointIds() {
 function pointCoords(pid) {
 	const pt = window.points?.[pid];
 	if (!pt) return null;
-	return { x: Number(pt.x), y: Number(pt.y) };
+	return { x: (Number(pt.x) - 256) / 512, y: -(Number(pt.y)) / 512 }; // normalize engine coords
 }
 
 // --- Symbolic simplification helpers (Nerdamer integration) ---
@@ -699,7 +699,7 @@ function numericIntersectArcLine(a,b,c,d) {
 
 function chooseExprForPid(pid, expr1, expr2) {
   // numeric chooser: compute numeric intersection candidates from parents and pick the closest
-  const P = window.points?.[pid];
+  const P = pointCoords(pid); // pointCoords not window.points
   if (!P) { console.warn(`no numeric position for pid ${pid}`); return expr1; }
   const dep = pointDependencies[pid];
   if (!dep || !dep.parents || dep.parents.length < 2) return expr1;
@@ -724,7 +724,7 @@ function chooseExprForPid(pid, expr1, expr2) {
   let bestIdx = 0; let bestDist = Infinity;
   for (let i = 0; i < candidates.length; i++) {
 	const q = candidates[i]; if (!q) continue;
-	const d = Math.hypot((P.x/256) - q.x, (P.y/256) - (-q.y)); // P.y - (-q.y) because canvas coords are inverted, unit length in window.points is 256
+	const d = Math.hypot(P.x - q.x, P.y - q.y); // I'll patch this at pointCoords() P.y - (-q.y) because canvas coords are inverted, unit length in window.points is 256
 	if (d < bestDist) { bestDist = d; bestIdx = i; }
   }
   return (bestIdx === 1) ? expr2 : expr1;
