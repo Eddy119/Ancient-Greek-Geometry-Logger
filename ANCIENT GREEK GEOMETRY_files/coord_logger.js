@@ -623,7 +623,7 @@ function exprArcLine(a, b, c, d, choice) {
 	const vx = `(${dx_} - ${cx})`, vy = `(${dy_} - ${cy})`;
 
 	// quadratic coefficients for intersection
-	const A = `${vx}^2 + ${vy}^2`;
+	const A = `(${vx}^2 + ${vy}^2)`;
 	const B = `2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) )`;
 	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
 
