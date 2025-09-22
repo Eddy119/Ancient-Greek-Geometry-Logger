@@ -210,10 +210,10 @@ if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 function _getSymCoord(id, coord) {
 	try {
-		if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
+		// if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
 			// Uncomment to DANGEROUSLY attempt to ensure the expression for this point (will recurse to parents as needed)
 			// ensureExpr(Number(id));
-		}
+		// }
 		// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
 		if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
 
@@ -784,66 +784,99 @@ changes.record = function(finished) {
         // snapshot after engine finalized points
         const afterAll = snapshotPointIds();
         console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
-		console.debug(pendingObjects);
+        console.debug(pendingObjects);
+
+        // helper: recursively flag pointDependencies for a given object hash
+        function flagDependenciesForHash(hash, visitedHashes = new Set()) {
+            if (!hash || visitedHashes.has(hash)) return;
+            visitedHashes.add(hash);
+
+            // derive numeric point ids from hash (works for 'aLb' and 'aAb')
+            const ids = String(hash).split(/A|L/).map(x => Number(x)).filter(n => !isNaN(n));
+            for (const pid of ids) {
+                if (pid === 0 || pid === 1) continue; // base points
+                // ensure entry exists for this pid
+                if (!pointDependencies[pid]) {
+                    // if we don't have a dependency skeleton for this pid, skip — it will be discovered by describeIntersectionFromObjects
+                    continue;
+                }
+                // if already has expr or already flagged, skip recursing
+                if (pointDependencies[pid].expr) continue;
+                if (pointDependencies[pid].flag) continue;
+
+                // flag it
+                pointDependencies[pid].flag = true;
+                console.debug(`flagDependenciesForHash: flagged p${pid} for hash ${hash}`);
+
+                // recurse into its parents (object hashes)
+                const parents = pointDependencies[pid].parents || [];
+                for (const ph of parents) {
+                    if (typeof ph === 'string' && ph.length) flagDependenciesForHash(ph, visitedHashes);
+                }
+            }
+        }
+
+        // helper: process all flagged points (compute expr) — does not unflag
+        function processFlaggedPoints() {
+            const flagged = Object.keys(pointDependencies).filter(k => pointDependencies[k]?.flag && !pointDependencies[k]?.expr).map(Number);
+            if (!flagged.length) return;
+            console.debug('processFlaggedPoints: will ensureExpr for', flagged);
+            for (const pid of flagged) {
+                try {
+                    ensureExpr(pid);
+                    // optionally simplify but only if nerdamer enabled
+                    if (USE_NERDAMER) {
+                        try { simplifyPoint(pid); } catch (e) { console.debug('simplifyPoint failed for', pid, e); }
+                    }
+                } catch (e) {
+                    console.debug('processFlaggedPoints: ensureExpr failed for', pid, e);
+                }
+            }
+        }
 
         // process each pending object (FIFO)
         for (const pend of pendingObjects) {
             try {
-				if (!pend || !pend.hash) return r;
+                if (!pend || !pend.hash) return r;
 
-				console.debug("Record patch: processing object", pend.hash, pend.type);
-				if (!dependencyMap[pend.hash]) { // temp seeding
-					dependencyMap[pend.hash] = {
-						type: pend.type,
-						depends: [], // may be incomplete
-						obj: null,
-					};
-				}
+                console.debug("Record patch: processing object", pend.hash, pend.type);
+                if (!dependencyMap[pend.hash]) { // temp seeding
+                    dependencyMap[pend.hash] = {
+                        type: pend.type,
+                        depends: [], // may be incomplete
+                        obj: null,
+                    };
+                }
 
-				// compute new pids for this pending object
+                // compute new pids for this pending object
                 const newPids = [...afterAll].filter(x => !pend.beforeIds.has(x)).map(Number);
                 console.debug(`pending ${pend.hash} -> newPids:`, newPids);
 
-                // If none found (rare), we still attempt coordinate-based matching across all points added since the earliest before snapshot
-                if (newPids.length === 0) {
-					// fallback: try to find any points added since smallest before snapshot among pendingObjects
-                    // build a union of all beforeIds to get a global baseline
-                    console.debug('changes.record: no newPids found for', pend);
-                    const unionBefore = new Set();
-                    for (let p of pendingObjects) {
-                        for (let id of p.beforeIds) unionBefore.add(id);
-                    }
-                    const candidates = [...afterAll].filter(x => !unionBefore.has(x));
-					// we won't try to auto-match here, skip — usually previous logic suffices
-                    console.debug('changes.record: fallback candidates since unionBefore:', candidates);
-                }
-
                 // build objects list including the newly-created object hash
                 const objects = collectAllObjectsWith(pend.hash);
-				console.debug("pendingObjects: ",pendingObjects,"pend: ",pend," pend.hash: ", pend.hash);// more debug
+                console.debug("pendingObjects: ",pendingObjects,"pend: ",pend," pend.hash: ", pend.hash);// more debug
+
                 // call describeIntersectionFromObjects for each newly created pid
                 for (const pid of newPids) {
                     console.debug(`Record: resolving p${pid} for ${pend.hash} against ${objects.length} objects, ${objects}`);
-					console.debug("ch.a: ",pend.meta.a, " typeof ch.a: ", typeof pend.meta.a);
+                    console.debug('pend.meta: ', pend.meta);
                     describeIntersectionFromObjects(Number(pid), objects);
                     if (pointDependencies[pid]) {
                         console.debug(`Record: p${pid} added pointDependencies:`, pointDependencies[pid]);
-                        try { simplifyPoint(pid); console.debug(`Record: simplified p${pid}:`, pointDependencies[pid].simplified); } catch(e){ console.debug('simplifyPoint failed for', pid, e); }
                     } else {
                         console.debug(`Record: p${pid} had no pointDependencies after describeIntersectionFromObjects`);
                     }
                 }
 
-				// // old gather ancestors of this new object (for reference)
-				// const ancestorPoints = collectAncestors(pend.hash);
-				// console.debug("Ancestor points for", pend.hash, ancestorPoints);
+                // ---- NEW: flag dependency skeleton from this pending object and recurse ----
+                try {
+                    if (pend.hash) {
+                        flagDependenciesForHash(pend.hash);
+                    }
+                } catch (e) { console.debug('flagDependenciesForHash error', e); }
 
-				// // only log dependencies for ancestor points
-				// for (const pid of ancestorPoints) {
-				// 	const objects = [pend.hash];
-				// 	console.debug(`Record patch: describing intersection for p${pid} from object ${pend.hash}`);
-				// 	describeIntersectionFromObjects(Number(pid), objects);
-				// }
+                // process flagged points: compute exprs for the flagged set
+                try { processFlaggedPoints(); } catch(e) { console.debug('processFlaggedPoints error', e); }
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
