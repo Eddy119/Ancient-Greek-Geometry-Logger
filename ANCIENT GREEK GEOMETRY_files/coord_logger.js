@@ -210,6 +210,10 @@ if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 function _getSymCoord(id, coord) {
 	try {
+		if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
+			// Uncomment to DANGEROUSLY attempt to ensure the expression for this point (will recurse to parents as needed)
+			// ensureExpr(Number(id));
+		}
 		// prefer simplified/symbolic expr if available, else fallback to symbolicPoints name
 		if (pointDependencies[id] && pointDependencies[id].expr && typeof pointDependencies[id].expr[coord] !== 'undefined') return pointDependencies[id].expr[coord];
 
