@@ -210,6 +210,8 @@ if (nukerBtn) nukerBtn.addEventListener('click', clearLog);
 
 function _getSymCoord(id, coord) {
 	try {
+		if (id === 0) return coord === "x" ? "0" : "0";
+    	if (id === 1) return coord === "x" ? "1" : "0";
 		// if (pointDependencies[id] && !pointDependencies[id].expr && !pointDependencies[id]._computing) {
 			// Uncomment to DANGEROUSLY attempt to ensure the expression for this point (will recurse to parents as needed)
 			// ensureExpr(Number(id));
@@ -350,7 +352,7 @@ function pointCoords(pid) {
 }
 
 // --- Symbolic simplification helpers (Nerdamer integration) ---
-let USE_NERDAMER = false;
+let USE_NERDAMER = true;
 
 function simplifyExprString(exprStr) {
 	// temporary: skip nerdamer-based simplification if disabled
@@ -361,7 +363,9 @@ function simplifyExprString(exprStr) {
 			return exprStr;
 		}
 		// nerdamer expects '^' for powers and sqrt(), etc. Use .expand()/.simplify() as needed
-		const res = nerdamer(exprStr).expand().simplify();
+		console.debug("what could we be possibly be feeding nerdamer?", exprStr);
+		const res = nerdamer(exprStr).simplify();
+		console.debug("what could nerdamer be spitting?", res.toString());
 		return res.toString();
 	} catch (err) {
 		console.error('simplifyExprString error for', exprStr, err);
@@ -719,9 +723,9 @@ function chooseExprForPid(pid, expr1, expr2) {
   if (!candidates || candidates.length === 0) return expr1;
   let bestIdx = 0; let bestDist = Infinity;
   for (let i = 0; i < candidates.length; i++) {
-    const q = candidates[i]; if (!q) continue;
-    const d = Math.hypot(P.x - q.x, P.y - q.y);
-    if (d < bestDist) { bestDist = d; bestIdx = i; }
+	const q = candidates[i]; if (!q) continue;
+	const d = Math.hypot(P.x - q.x, P.y - (-q.y)); // P.y - (-q.y) because canvas coords are inverted
+	if (d < bestDist) { bestDist = d; bestIdx = i; }
   }
   return (bestIdx === 1) ? expr2 : expr1;
 }
@@ -876,7 +880,7 @@ changes.record = function(finished) {
                 } catch (e) { console.debug('flagDependenciesForHash error', e); }
 
                 // process flagged points: compute exprs for the flagged set // uncomment to process
-                // try { processFlaggedPoints(); } catch(e) { console.debug('processFlaggedPoints error', e); }
+                try { processFlaggedPoints(); } catch(e) { console.debug('processFlaggedPoints error', e); }
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
