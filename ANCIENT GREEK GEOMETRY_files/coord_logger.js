@@ -720,7 +720,7 @@ function chooseExprForPid(pid, expr1, expr2) {
   } catch (e) {
     console.warn('chooseExprForPid numeric intersection failed', e);
   }
-  if (!candidates || candidates.length === 0) return expr1;
+  if (!candidates || candidates.length === 0) {console.warn(`no numeric intersection candidates for p${pid}`);return null};
   let bestIdx = 0; let bestDist = Infinity;
   for (let i = 0; i < candidates.length; i++) {
 	const q = candidates[i]; if (!q) continue;
