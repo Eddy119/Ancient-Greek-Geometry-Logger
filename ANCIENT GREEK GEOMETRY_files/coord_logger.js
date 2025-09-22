@@ -724,7 +724,7 @@ function chooseExprForPid(pid, expr1, expr2) {
   let bestIdx = 0; let bestDist = Infinity;
   for (let i = 0; i < candidates.length; i++) {
 	const q = candidates[i]; if (!q) continue;
-	const d = Math.hypot(P.x - q.x, P.y - (-q.y)); // P.y - (-q.y) because canvas coords are inverted
+	const d = Math.hypot((P.x/256) - q.x, (P.y/256) - (-q.y)); // P.y - (-q.y) because canvas coords are inverted, unit length in window.points is 256
 	if (d < bestDist) { bestDist = d; bestIdx = i; }
   }
   return (bestIdx === 1) ? expr2 : expr1;
