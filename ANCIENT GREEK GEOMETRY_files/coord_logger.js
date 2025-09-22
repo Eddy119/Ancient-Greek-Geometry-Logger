@@ -563,9 +563,9 @@ function exprIntersectLineLine(h1, h2) {
 	const Cx = _getSymCoord(c,'x'), Cy = _getSymCoord(c,'y'), Dx = _getSymCoord(d,'x'), Dy = _getSymCoord(d,'y');
 
 	// determinant formula
-	const denom = `(${Ax}-${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}-${Dx})`;
-	const x = `((${Ax}*${By}-${Ay}*${Bx})*(${Cx}-${Dx}) - (${Ax}-${Bx})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
-	const y = `((${Ax}*${By}-${Ay}*${Bx})*(${Cy}-${Dy}) - (${Ay}-${By})*(${Cx}*${Dy}-${Cy}*${Dx})) / ${denom}`;
+	const denom = `((${Ax})-(${Bx}))*(${Cy}-${Dy}) - ((${Ay})-(${By}))*(${Cx}-${Dx})`;
+	const x = `(((${Ax}*${By})-(${Ay}*${Bx}))*(${Cx}-${Dx}) - ((${Ax})-(${Bx}))*(((${Cx}*${Dy})-(${Cy}*${Dx})))) / (${denom})`;
+	const y = `(((${Ax}*${By})-(${Ay}*${Bx}))*(${Cy}-${Dy}) - ((${Ay})-(${By}))*(((${Cx}*${Dy})-(${Cy}*${Dx})))) / (${denom})`;
 
 	return { x, y };
 }
@@ -578,33 +578,33 @@ function exprArcArc(a, b, c, d, choice) {
 	const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
 
 	// squared radii
-	const r1sq = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
-	const r2sq = `(${dx} - ${cx})^2 + (${dy} - ${cy})^2`;
+	const r1sq = `((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`;
+	const r2sq = `((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2`;
 
 	// line between centers
-	const dxac = `(${cx} - ${ax})`, dyac = `(${cy} - ${ay})`;
-	const d2 = `${dxac}^2 + ${dyac}^2`;
+	const dxac = `((${cx}) - (${ax}))`, dyac = `((${cy}) - (${ay}))`;
+	const d2 = `(${dxac})^2 + (${dyac})^2`;
 
 	// base point along line connecting centers
-	const t = `( (${r1sq} - ${r2sq} + ${d2}) / (2*(${d2})) )`;
-	const px = `${ax} + ${t}*(${dxac})`;
-	const py = `${ay} + ${t}*(${dyac})`;
+	const t = `(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`;
+	const px = `(${ax}) + (${t})*(${dxac})`;
+	const py = `(${ay}) + (${t})*(${dyac})`;
 
 	// distance from base point to intersection
-	const hsq = `${r1sq} - ${t}^2*(${d2})`;
+	const hsq = `(${r1sq}) - ((${t})^2*(${d2}))`;
 	const h = `sqrt(${hsq})`;
 
 	// perpendicular offset
-	const rx = `-${dyac}`, ry = dxac;
+	const rx = `-(${dyac})`, ry = dxac;
 	const mag = `sqrt(${d2})`;
 
 	let ix, iy;
 	if (choice === 0) {
-		ix = `${px} + ${h}*(${rx})/${mag}`;
-		iy = `${py} + ${h}*(${ry})/${mag}`;
+		ix = `(${px}) + (${h})*(${rx})/(${mag})`;
+		iy = `(${py}) + (${h})*(${ry})/(${mag})`;
 	} else {
-		ix = `${px} - ${h}*(${rx})/${mag}`;
-		iy = `${py} - ${h}*(${ry})/${mag}`;
+		ix = `(${px}) - (${h})*(${rx})/(${mag})`;
+		iy = `(${py}) - (${h})*(${ry})/(${mag})`;
 	}
 	return { x: ix, y: iy };
 }
