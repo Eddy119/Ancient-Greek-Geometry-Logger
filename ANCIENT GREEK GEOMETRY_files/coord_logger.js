@@ -627,19 +627,22 @@ function exprArcLine(a, b, c, d, choice) {
 	const B = `(2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) ))`;
 	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
 
-	const disc = `${B}^2 - 4*${A}*${C}`;
+	// IMPORTANT: fully parenthesize A and C when combining them
+	const disc = `(${B})^2 - 4*(${A})*(${C})`;
 	const sqrtDisc = `sqrt(${disc})`;
 
 	let t;
 	if (choice === 0) {
-		t = `(-${B} + ${sqrtDisc}) / (2*${A})`;
+		t = `((-${B}) + ${sqrtDisc}) / (2*(${A}))`;
 	} else {
-		t = `(-${B} - ${sqrtDisc}) / (2*${A})`;
+		t = `((-${B}) - ${sqrtDisc}) / (2*(${A}))`;
 	}
 
-	const ix = `${cx} + ${t}*${vx}`;
-	const iy = `${cy} + ${t}*${vy}`;
 	// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
+	// parenthesize t and vx/vy when multiplying
+	const ix = `${cx} + (${t})*(${vx})`;
+	const iy = `${cy} + (${t})*(${vy})`;
+
 	return { x: ix, y: iy };
 }
 
