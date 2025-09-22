@@ -362,13 +362,13 @@ function simplifyExprString(exprStr) {
 	// temporary: skip nerdamer-based simplification if disabled
 	if (!USE_NERDAMER) return exprStr;
 	try {
-		if (typeof nerdamer === 'undefined') {
+		if (typeof Algebrite === 'undefined') {
 			console.warn('simplifyExprString: nerdamer not available');
 			return exprStr;
 		}
 		// nerdamer expects '^' for powers and sqrt(), etc. Use .expand()/.simplify() as needed
 		console.debug("what could we be possibly be feeding nerdamer?", exprStr);
-		const res = nerdamer(exprStr).simplify();
+		const res = Algebrite.run(`simplify(${exprStr})`);
 		console.debug("what could nerdamer be spitting?", res.toString());
 		return res.toString();
 	} catch (err) {

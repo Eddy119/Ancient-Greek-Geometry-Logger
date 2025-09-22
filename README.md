@@ -63,10 +63,8 @@ In body betwen sidebar and maincanvas:
 ```
 Between existing scripts, put it before init.js:
 ```
-	<!-- nerdamer scripts -->
-    <script src="https://unpkg.com/nerdamer/nerdamer.core.js"></script>
-	<script src="https://unpkg.com/nerdamer/Algebra.js"></script>
-	<script src="https://unpkg.com/nerdamer/Solve.js"></script>
+	<!-- Algebrite script -->
+    <script src="https://cdn.jsdelivr.net/npm/algebrite@1.4.0/dist/algebrite.bundle-for-browser.min.js"></script>
     <!-- my scripts -->
 	<script src="./ANCIENT GREEK GEOMETRY_files/coord_logger.js"></script>
 	<script src="./ANCIENT GREEK GEOMETRY_files/local_storage_download.js"></script>
