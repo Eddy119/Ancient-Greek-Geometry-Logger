@@ -775,6 +775,54 @@ function collectAllObjectsWith(hashToPrepend) {
     return objects;
 }
 
+// helper: recursively flag pointDependencies for a given object hash
+function flagDependenciesForHash(hash, visitedHashes = new Set()) {
+	if (!hash || visitedHashes.has(hash)) return;
+	visitedHashes.add(hash);
+
+	// derive numeric point ids from hash (works for 'aLb' and 'aAb')
+	const ids = String(hash).split(/A|L/).map(x => Number(x)).filter(n => !isNaN(n));
+	for (const pid of ids) {
+		if (pid === 0 || pid === 1) continue; // base points
+		// ensure entry exists for this pid
+		if (!pointDependencies[pid]) {
+			// if we don't have a dependency skeleton for this pid, skip — it will be discovered by describeIntersectionFromObjects
+			continue;
+		}
+		// if already has expr or already flagged, skip recursing
+		if (pointDependencies[pid].expr) continue;
+		if (pointDependencies[pid].flag) continue;
+
+		// flag it
+		pointDependencies[pid].flag = true;
+		console.debug(`flagDependenciesForHash: flagged p${pid} for hash ${hash}`);
+
+		// recurse into its parents (object hashes)
+		const parents = pointDependencies[pid].parents || [];
+		for (const ph of parents) {
+			if (typeof ph === 'string' && ph.length) flagDependenciesForHash(ph, visitedHashes);
+		}
+	}
+}
+
+// helper: process all flagged points (compute expr) — does not unflag
+function processFlaggedPoints() {
+	const flagged = Object.keys(pointDependencies).filter(k => pointDependencies[k]?.flag && !pointDependencies[k]?.expr).map(Number);
+	if (!flagged.length) return;
+	console.debug('processFlaggedPoints: will ensureExpr for', flagged);
+	for (const pid of flagged) {
+		try {
+			ensureExpr(pid);
+			// optionally simplify but only if nerdamer enabled
+			if (USE_NERDAMER) {
+				try { simplifyPoint(pid); } catch (e) { console.debug('simplifyPoint failed for', pid, e); }
+			}
+		} catch (e) {
+			console.debug('processFlaggedPoints: ensureExpr failed for', pid, e);
+		}
+	}
+}
+
 // ---- changes.record flush: compute afterSet, resolve pendingObjects by diffing against their beforeIds ----
 const orig_record = changes.record;
 changes.record = function(finished) {
@@ -785,54 +833,6 @@ changes.record = function(finished) {
         const afterAll = snapshotPointIds();
         console.debug(`changes.record: processing ${pendingObjects.length} pendingObjects; afterAll size=${afterAll.size}`);
         console.debug(pendingObjects);
-
-        // helper: recursively flag pointDependencies for a given object hash
-        function flagDependenciesForHash(hash, visitedHashes = new Set()) {
-            if (!hash || visitedHashes.has(hash)) return;
-            visitedHashes.add(hash);
-
-            // derive numeric point ids from hash (works for 'aLb' and 'aAb')
-            const ids = String(hash).split(/A|L/).map(x => Number(x)).filter(n => !isNaN(n));
-            for (const pid of ids) {
-                if (pid === 0 || pid === 1) continue; // base points
-                // ensure entry exists for this pid
-                if (!pointDependencies[pid]) {
-                    // if we don't have a dependency skeleton for this pid, skip — it will be discovered by describeIntersectionFromObjects
-                    continue;
-                }
-                // if already has expr or already flagged, skip recursing
-                if (pointDependencies[pid].expr) continue;
-                if (pointDependencies[pid].flag) continue;
-
-                // flag it
-                pointDependencies[pid].flag = true;
-                console.debug(`flagDependenciesForHash: flagged p${pid} for hash ${hash}`);
-
-                // recurse into its parents (object hashes)
-                const parents = pointDependencies[pid].parents || [];
-                for (const ph of parents) {
-                    if (typeof ph === 'string' && ph.length) flagDependenciesForHash(ph, visitedHashes);
-                }
-            }
-        }
-
-        // helper: process all flagged points (compute expr) — does not unflag
-        function processFlaggedPoints() {
-            const flagged = Object.keys(pointDependencies).filter(k => pointDependencies[k]?.flag && !pointDependencies[k]?.expr).map(Number);
-            if (!flagged.length) return;
-            console.debug('processFlaggedPoints: will ensureExpr for', flagged);
-            for (const pid of flagged) {
-                try {
-                    ensureExpr(pid);
-                    // optionally simplify but only if nerdamer enabled
-                    if (USE_NERDAMER) {
-                        try { simplifyPoint(pid); } catch (e) { console.debug('simplifyPoint failed for', pid, e); }
-                    }
-                } catch (e) {
-                    console.debug('processFlaggedPoints: ensureExpr failed for', pid, e);
-                }
-            }
-        }
 
         // process each pending object (FIFO)
         for (const pend of pendingObjects) {
