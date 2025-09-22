@@ -348,7 +348,7 @@ function snapshotPointIds() {
 function pointCoords(pid) {
 	const pt = window.points?.[pid];
 	if (!pt) return null;
-	return { x: (Number(pt.x) - 256) / 512, y: -(Number(pt.y)) / 512 }; // normalize engine coords
+	return { x: (Number(pt.x) + 256) / 512, y: -(Number(pt.y)) / 512 }; // normalize engine coords
 }
 
 // --- Symbolic simplification helpers (Nerdamer integration) ---
