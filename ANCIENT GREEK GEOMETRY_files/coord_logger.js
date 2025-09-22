@@ -563,7 +563,7 @@ function exprIntersectLineLine(h1, h2) {
 	const Cx = _getSymCoord(c,'x'), Cy = _getSymCoord(c,'y'), Dx = _getSymCoord(d,'x'), Dy = _getSymCoord(d,'y');
 
 	// determinant formula
-	const denom = `((${Ax})-(${Bx}))*(${Cy}-${Dy}) - ((${Ay})-(${By}))*(${Cx}-${Dx})`;
+	const denom = `((${Ax})-(${Bx}))*((${Cy})-(${Dy})) - ((${Ay})-(${By}))*((${Cx})-(${Dx}))`;
 	const x = `(((${Ax}*${By})-(${Ay}*${Bx}))*(${Cx}-${Dx}) - ((${Ax})-(${Bx}))*(((${Cx}*${Dy})-(${Cy}*${Dx})))) / (${denom})`;
 	const y = `(((${Ax}*${By})-(${Ay}*${Bx}))*(${Cy}-${Dy}) - ((${Ay})-(${By}))*(((${Cx}*${Dy})-(${Cy}*${Dx})))) / (${denom})`;
 
@@ -617,10 +617,10 @@ function exprArcLine(a, b, c, d, choice) {
 	const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
 
 	// radius squared
-	const r2 = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
+	const r2 = `((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`;
 
 	// line direction
-	const vx = `(${dx_} - ${cx})`, vy = `(${dy_} - ${cy})`;
+	const vx = `((${dx_}) - (${cx}))`, vy = `((${dy_}) - (${cy}))`;
 
 	// quadratic coefficients for intersection
 	const A = `(${vx}^2 + ${vy}^2)`;
