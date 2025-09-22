@@ -875,8 +875,8 @@ changes.record = function(finished) {
                     }
                 } catch (e) { console.debug('flagDependenciesForHash error', e); }
 
-                // process flagged points: compute exprs for the flagged set
-                try { processFlaggedPoints(); } catch(e) { console.debug('processFlaggedPoints error', e); }
+                // process flagged points: compute exprs for the flagged set // uncomment to process
+                // try { processFlaggedPoints(); } catch(e) { console.debug('processFlaggedPoints error', e); }
 
                 // After processing newPids, simplify any dependencies directly referencing this hash and cache lengths
                 if (pend.hash) {
