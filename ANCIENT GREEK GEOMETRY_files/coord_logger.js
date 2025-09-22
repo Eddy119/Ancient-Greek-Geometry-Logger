@@ -795,7 +795,7 @@ function flagDependenciesForHash(hash, visitedHashes = new Set()) {
 
 		// flag it
 		pointDependencies[pid].flag = true;
-		console.debug(`flagDependenciesForHash: flagged p${pid} for hash ${hash}`);
+		console.debug(`flagDependenciesForHash: flagged p${pid} for hash ${hash}, reconfirm:`, pointDependencies[pid].flag);
 
 		// recurse into its parents (object hashes)
 		const parents = pointDependencies[pid].parents || [];
