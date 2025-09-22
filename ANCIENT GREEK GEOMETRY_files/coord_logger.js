@@ -571,160 +571,81 @@ function exprIntersectLineLine(h1, h2) {
 }
 
 function exprArcArc(a, b, c, d, choice) {
-	if (typeof nerdamer !== 'undefined') {
-		// circle (a,b) ∩ circle (c,d)
-		const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
-		const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-		const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
-		const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
+	// circle (a,b) ∩ circle (c,d)
+	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
+	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
+	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+	const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
 
-		// squared radii
-		const r1sq = nerdamer(`((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`).simplify;
-		const r2sq = nerdamer(`((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2`).simplify;
+	// squared radii
+	const r1sq = `((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`;
+	const r2sq = `((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2`;
 
-		// line between centers
-		const dxac = nerdamer(`(${dx}) - (${cx})`).simplify, dyac = nerdamer(`(${dy}) - (${cy})`).simplify;
-		const d2 = `(${dxac})^2 + (${dyac})^2`;
+	// line between centers
+	const dxac = `((${cx}) - (${ax}))`, dyac = `((${cy}) - (${ay}))`;
+	const d2 = `(${dxac})^2 + (${dyac})^2`;
 
-		// base point along line connecting centers
-		const t = nerdamer(`(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`).simplify;
-		const px = `(${ax}) + (${t})*(${dxac})`;
-		const py = `(${ay}) + (${t})*(${dyac})`;
+	// base point along line connecting centers
+	const t = `(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`;
+	const px = `(${ax}) + (${t})*(${dxac})`;
+	const py = `(${ay}) + (${t})*(${dyac})`;
 
-		// distance from base point to intersection
-		const hsq = nerdamer(`(${r1sq}) - ((${t})^2*(${d2}))`).simplify;
-		const h = `sqrt(${hsq})`;
+	// distance from base point to intersection
+	const hsq = `(${r1sq}) - ((${t})^2*(${d2}))`;
+	const h = `sqrt(${hsq})`;
 
-		// perpendicular offset
-		const rx = `-(${dyac})`, ry = dxac;
-		const mag = `sqrt(${d2})`;
+	// perpendicular offset
+	const rx = `-(${dyac})`, ry = dxac;
+	const mag = `sqrt(${d2})`;
 
-		let ix, iy;
-		if (choice === 0) {
-			ix = `(${px}) + (${h})*(${rx})/(${mag})`;
-			iy = `(${py}) + (${h})*(${ry})/(${mag})`;
-		} else {
-			ix = `(${px}) - (${h})*(${rx})/(${mag})`;
-			iy = `(${py}) - (${h})*(${ry})/(${mag})`;
-		}
-		return { x: ix, y: iy };
+	let ix, iy;
+	if (choice === 0) {
+		ix = `(${px}) + (${h})*(${rx})/(${mag})`;
+		iy = `(${py}) + (${h})*(${ry})/(${mag})`;
 	} else {
-		// circle (a,b) ∩ circle (c,d)
-		const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
-		const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-		const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
-		const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
-
-		// squared radii
-		const r1sq = `((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`;
-		const r2sq = `((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2`;
-
-		// line between centers
-		const dxac = `((${cx}) - (${ax}))`, dyac = `((${cy}) - (${ay}))`;
-		const d2 = `(${dxac})^2 + (${dyac})^2`;
-
-		// base point along line connecting centers
-		const t = `(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`;
-		const px = `(${ax}) + (${t})*(${dxac})`;
-		const py = `(${ay}) + (${t})*(${dyac})`;
-
-		// distance from base point to intersection
-		const hsq = `(${r1sq}) - ((${t})^2*(${d2}))`;
-		const h = `sqrt(${hsq})`;
-
-		// perpendicular offset
-		const rx = `-(${dyac})`, ry = dxac;
-		const mag = `sqrt(${d2})`;
-
-		let ix, iy;
-		if (choice === 0) {
-			ix = `(${px}) + (${h})*(${rx})/(${mag})`;
-			iy = `(${py}) + (${h})*(${ry})/(${mag})`;
-		} else {
-			ix = `(${px}) - (${h})*(${rx})/(${mag})`;
-			iy = `(${py}) - (${h})*(${ry})/(${mag})`;
-		}
-		return { x: ix, y: iy };
+		ix = `(${px}) - (${h})*(${rx})/(${mag})`;
+		iy = `(${py}) - (${h})*(${ry})/(${mag})`;
 	}
+	return { x: ix, y: iy };
 }
 
 function exprArcLine(a, b, c, d, choice) {
-	if (typeof nerdamer !== 'undefined') {
-		// circle (a,b) ∩ line (c,d)
-		const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
-		const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-		const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
-		const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
+	// circle (a,b) ∩ line (c,d)
+	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
+	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
+	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+	const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
 
-		// radius squared
-		const r2 = nerdamer(`(${bx} - ${ax})^2 + (${by} - ${ay})^2`).simplify;
+	// radius squared
+	const r2 = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
 
-		// line direction
-		const vx = nerdamer(`(${dx_} - ${cx})`).simplify, vy = nerdamer(`(${dy_} - ${cy})`).simplify;
+	// line direction
+	const vx = `(${dx_} - ${cx})`, vy = `(${dy_} - ${cy})`;
 
-		// quadratic coefficients for intersection
-		const A = `(${vx}^2 + ${vy}^2)`;
-		const B = nerdamer(`(2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) ))`).simplify;
-		const C = nerdamer(`(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`).simplify;
+	// quadratic coefficients for intersection
+	const A = `(${vx}^2 + ${vy}^2)`;
+	const B = `(2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) ))`;
+	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
 
-		// IMPORTANT: fully parenthesize A and C when combining them
-		// determinant (discriminant)
-		const disc = `(${B})^2 - 4*(${A})*(${C})`;
-		const sqrtDisc = `sqrt(${disc})`;
+	// IMPORTANT: fully parenthesize A and C when combining them
+	// determinant (discriminant)
+	const disc = `(${B})^2 - 4*(${A})*(${C})`;
+	const sqrtDisc = `sqrt(${disc})`;
 
-		// IMPORTANT: wrap numerator fully in parentheses to avoid premature simplification
-		let t;
-		if (choice === 0) {
-			t = nerdamer(`(((-1)*(${B})) + ${sqrtDisc}) / (2*(${A}))`).simplify;
-		} else {
-			t = nerdamer(`(((-1)*(${B})) - ${sqrtDisc}) / (2*(${A}))`).simplify;
-		}
-
-		// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
-		// parenthesize t and vx/vy when multiplying, also wrap t in parentheses when used
-		const ix = nerdamer(`(${cx}) + ((${t})*(${vx}))`).simplify;
-		const iy = nerdamer(`(${cy}) + ((${t})*(${vy}))`).simplify;
-
-		return { x: ix, y: iy };
+	// IMPORTANT: wrap numerator fully in parentheses to avoid premature simplification
+	let t;
+	if (choice === 0) {
+		t = `(((-1)*(${B})) + ${sqrtDisc}) / (2*(${A}))`;
+	} else {
+		t = `(((-1)*(${B})) - ${sqrtDisc}) / (2*(${A}))`;
 	}
-	else {
-		// circle (a,b) ∩ line (c,d)
-		const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
-		const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-		const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
-		const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
 
-		// radius squared
-		const r2 = `(${bx} - ${ax})^2 + (${by} - ${ay})^2`;
+	// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
+	// parenthesize t and vx/vy when multiplying, also wrap t in parentheses when used
+	const ix = `(${cx}) + ((${t})*(${vx}))`;
+	const iy = `(${cy}) + ((${t})*(${vy}))`;
 
-		// line direction
-		const vx = `(${dx_} - ${cx})`, vy = `(${dy_} - ${cy})`;
-
-		// quadratic coefficients for intersection
-		const A = `(${vx}^2 + ${vy}^2)`;
-		const B = `(2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) ))`;
-		const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
-
-		// IMPORTANT: fully parenthesize A and C when combining them
-		// determinant (discriminant)
-		const disc = `(${B})^2 - 4*(${A})*(${C})`;
-		const sqrtDisc = `sqrt(${disc})`;
-
-		// IMPORTANT: wrap numerator fully in parentheses to avoid premature simplification
-		let t;
-		if (choice === 0) {
-			t = `(((-1)*(${B})) + ${sqrtDisc}) / (2*(${A}))`;
-		} else {
-			t = `(((-1)*(${B})) - ${sqrtDisc}) / (2*(${A}))`;
-		}
-
-		// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
-		// parenthesize t and vx/vy when multiplying, also wrap t in parentheses when used
-		const ix = `(${cx}) + ((${t})*(${vx}))`;
-		const iy = `(${cy}) + ((${t})*(${vy}))`;
-
-		return { x: ix, y: iy };
-	}
+	return { x: ix, y: iy };
 }
 
 function pointDependenciesFor(hash) {
