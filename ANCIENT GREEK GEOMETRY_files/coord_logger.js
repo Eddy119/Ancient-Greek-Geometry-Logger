@@ -468,6 +468,7 @@ function describeIntersectionFromObjects(pid, objects) {
 	console.debug("is it inputting garbage? ",objects);
 	if (!Array.isArray(objects) || objects.length < 2) return null;
 	let found = false;
+	let collinear = false;
 	for (let i = 0; i < objects.length; i++) {
 		for (let j = i + 1; j < objects.length; j++) {
 			const h1 = objects[i], h2 = objects[j];
@@ -492,10 +493,13 @@ function describeIntersectionFromObjects(pid, objects) {
 					addPointParentSkeleton(pid, `fallback ${fallbackParents.join(',')}`, fallbackParents, "intersection");
 				}
 				// we only need the first matching pair			// TODO: keep looping if collinear
-				return pointDependencies[pid] || null;
+				if (!pointDependencies[pid]) return null;
+				if (pointDependencies[pid].type !== "collinear") {collinear = false; return pointDependencies[pid];}
+				else collinear = true;
 			}
 		}
 	}
+	if (collinear) console.warn(`only collinear parents detected for p${pid} among objects: ${objects.join(',')}`);
 	if (!found) console.error(`Could not determine parents for p${pid} among objects: ${objects.join(',')}`);
 	return null;
 }
