@@ -284,15 +284,31 @@ function intersectArcArc(pid, aCenter, aEdge, bCenter, bEdge) { // engine orderi
 
 function formatPoint(pid) {
 	const dep = pointDependencies[pid];
+
+	let symCoord = { x: '?', y: '?' };
+
+	if (pid === '0') 
+	{symCoord = { x: '0', y: '0' };}
+	else if (pid === '1')
+	{symCoord = { x: '1', y: '0' };}
+	else if (dep !== undefined && dep.simplified !== undefined) {symCoord =  dep.simplified};
+
 	if (dep) {
 		// Constructed point with dependency info
 		// return `p${pid} = ${dep.desc} => (${dep.expr.x}, ${dep.expr.y})`;
-		return `p${pid} = ${dep.desc}`; // for now
+		// return `p${pid} = ${dep.desc}`; // for now
+		return `p${pid} = ${dep.desc} => (${symCoord.x}, ${symCoord.y})`;
 	} else {
 		// Likely an original/axiom point
 		const p = window.points?.[pid];
 		if (p) {
+			if (p.x === -256 && p.y === 0) {
+				return `p${pid} = original => (0, 0)`;
+			} else if (p.x === 256 && p.y === 0) {
+				return `p${pid} = original => (1, 0)`;
+			} else {
 			return `p${pid} = original => (${p.x}, ${p.y})`;
+			}
 		}
 		return `p${pid} = unknown`;
 	}
@@ -309,11 +325,26 @@ function formatChange(ch, actionId) {
 	let hash = (ch.type === 'arc') ? `${a}A${b}` : (ch.type === 'realline' ? `${a}L${b}` : `?`);
 	const moveNum = (typeof modules !== 'undefined' && modules.test && typeof modules.test.score === 'function') ? modules.test.score() : realmoveCount;
 
+	let symCoorda = { x: '?', y: '?' };
+	let symCoordb = { x: '?', y: '?' };
+
+	if (a === '0') 
+	{symCoorda = { x: '0', y: '0' };}
+	else if (a === '1')
+	{symCoorda = { x: '1', y: '0' };}
+	else if (pointDependencies[a] !== undefined && pointDependencies[a].simplified !== undefined) {symCoorda =  pointDependencies[a].simplified};
+
+	if (b === '0') 
+	{symCoordb = { x: '0', y: '0' };}
+	else if (b === '1')
+	{symCoordb = { x: '1', y: '0' };}
+	else if (pointDependencies[b] !== undefined && pointDependencies[b].simplified !== undefined) {symCoordb =  pointDependencies[b].simplified};
+
 	if (ch.type === 'arc') {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 
-		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}| coords: ${pointDependencies[a].simplified}, ${pointDependencies[b].simplified}`;
+		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}| coords: (${symCoorda.x}, ${symCoorda.y}), (${symCoordb.x}, ${symCoordb.y})`;
 
 		logStr += `\n  Intersections:\n    `;
 		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
@@ -329,7 +360,7 @@ function formatChange(ch, actionId) {
 		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 
-		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}, coords: ${pointDependencies[a].simplified}, ${pointDependencies[b].simplified}`;
+		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}, coords: (${symCoorda.x}, ${symCoorda.y}), (${symCoordb.x}, ${symCoordb.y})`;
 
 		logStr += `\n  Intersections:\n    `;
 		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
