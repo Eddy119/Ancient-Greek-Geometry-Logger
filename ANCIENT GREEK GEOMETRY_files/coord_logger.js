@@ -634,7 +634,7 @@ function exprArcLine(a, b, c, d, choice) {
 	// circle (a,b) ∩ line (c,d)
 	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
 	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+	const cx = `${_getSymCoord(c, 'x')}`, cy = `${_getSymCoord(c, 'y')}`;
 	const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
 
 	// radius squared
@@ -644,8 +644,8 @@ function exprArcLine(a, b, c, d, choice) {
 	const vx = `((${dx_}) - (${cx}))`, vy = `((${dy_}) - (${cy}))`;
 
 	// quadratic coefficients for intersection
-	const A = `(${vx}^2 + ${vy}^2)`;
-	const B = `(2*( (${cx} - ${ax})*(${vx}) + (${cy} - ${ay})*(${vy}) ))`;
+	const A = Algebrite.run(`simplify((${vx})^2 + (${vy})^2)`);
+	const B = Algebrite.run(`simplify(2*( ((${cx}) - (${ax}))*(${vx}) + ((${cy}) - (${ay}))*(${vy}) ))`);
 	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
 
 	// IMPORTANT: fully parenthesize A and C when combining them
