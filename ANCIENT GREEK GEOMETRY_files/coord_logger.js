@@ -521,7 +521,8 @@ function ensureExpr(pid) {
 		return null;
 	}
 
-	const [obj1, obj2] = dep.parents;
+	const obj1 = dep.parents[0];
+	const obj2 = dep.parents[dep.parents.length - 1];
 	let expr = null;
 	try {
 		if (obj1.includes("L") && obj2.includes("L")) {
