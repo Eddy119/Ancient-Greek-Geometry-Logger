@@ -718,7 +718,8 @@ function chooseExprForPid(pid, expr1, expr2) {
   if (!P) { console.warn(`no numeric position for pid ${pid}`); return expr1; }
   const dep = pointDependencies[pid];
   if (!dep || !dep.parents || dep.parents.length < 2) return expr1;
-  const [obj1, obj2] = dep.parents;
+  const obj1 = dep.parents[0];
+  const obj2 = dep.parents[dep.parents.length - 1];
   let candidates = [];
   try {
     if (obj1.includes('A') && obj2.includes('A')) {
