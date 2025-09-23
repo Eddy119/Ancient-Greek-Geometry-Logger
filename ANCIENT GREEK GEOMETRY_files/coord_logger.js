@@ -580,8 +580,10 @@ function exprIntersectLineLine(h1, h2) {
 	const [c, d] = h2.split("L").map(Number);
 
 	// use _getSymCoord for coords
-	const Ax = _getSymCoord(a,'x'), Ay = _getSymCoord(a,'y'), Bx = _getSymCoord(b,'x'), By = _getSymCoord(b,'y');
-	const Cx = _getSymCoord(c,'x'), Cy = _getSymCoord(c,'y'), Dx = _getSymCoord(d,'x'), Dy = _getSymCoord(d,'y');
+	const Ax = `(${_getSymCoord(a,'x')})`, Ay = `(${_getSymCoord(a,'y')})`, Bx = `(${_getSymCoord(b,'x')})`, By = `(${_getSymCoord(b,'y')})`;
+	const Cx = `(${_getSymCoord(c,'x')})`, Cy = `(${_getSymCoord(c,'y')})`, Dx = `(${_getSymCoord(d,'x')})`, Dy = `(${_getSymCoord(d,'y')})`;
+
+	console.debug("exprIntersectLineLine", a, b, c, d, Ax, Ay, Ax, Bx, By, Cx, Cy, Dx, Dy);
 
 	// determinant formula
 	const denom = `((${Ax})-(${Bx}))*((${Cy})-(${Dy})) - ((${Ay})-(${By}))*((${Cx})-(${Dx}))`;
@@ -621,11 +623,11 @@ function exprArcArc(a, b, c, d, choice) {
 
 	let ix, iy;
 	if (choice === 0) {
-		ix = `(${px}) + (${h})*(${rx})/(${mag})`;
-		iy = `(${py}) + (${h})*(${ry})/(${mag})`;
+		ix = `((${px}) + (${h})*(${rx})/(${mag}))`;
+		iy = `((${py}) + (${h})*(${ry})/(${mag}))`;
 	} else {
-		ix = `(${px}) - (${h})*(${rx})/(${mag})`;
-		iy = `(${py}) - (${h})*(${ry})/(${mag})`;
+		ix = `((${px}) - (${h})*(${rx})/(${mag}))`;
+		iy = `((${py}) - (${h})*(${ry})/(${mag}))`;
 	}
 	return { x: ix, y: iy };
 }
