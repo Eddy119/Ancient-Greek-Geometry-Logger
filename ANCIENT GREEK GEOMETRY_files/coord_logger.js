@@ -313,7 +313,7 @@ function formatChange(ch, actionId) {
 		addDependency(hash, { type: 'arc', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 
-		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}|`;
+		let logStr = `Action ${actionId} (Move ${moveNum}): Arc ${hash}\n  center: p${a}\n  radius: |p${a}p${b}| coords: ${pointDependencies[a].simplified}, ${pointDependencies[b].simplified}`;
 
 		logStr += `\n  Intersections:\n    `;
 		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
@@ -329,7 +329,7 @@ function formatChange(ch, actionId) {
 		addDependency(hash, { type: 'line', depends: [a, b], obj: ch.obj, actionId });
 		ensureSymbolicPoint(a); ensureSymbolicPoint(b);
 
-		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}`;
+		let logStr = `Action ${actionId} (Move ${moveNum}): Line ${hash}\n  endpoints: p${a}, p${b}, coords: ${pointDependencies[a].simplified}, ${pointDependencies[b].simplified}`;
 
 		logStr += `\n  Intersections:\n    `;
 		logStr += formatPoint(a) + `\n    ` + formatPoint(b);
