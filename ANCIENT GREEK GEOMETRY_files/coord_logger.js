@@ -448,7 +448,7 @@ function dist(p, q) {
 	return Math.hypot(p.x - q.x, p.y - q.y);
 }
 
-function pointOnLine(pid, a, b, tol = 1e-6) {
+function pointOnLine(pid, a, b, tol = 1e-6) { // this detects point on inf extension of the line, check flagDependenciesForHash() for any exclusions (don't exclude)
 	const P = pointCoords(pid), A = pointCoords(a), B = pointCoords(b);
 	if (!P || !A || !B) return false;
 	const ABx = B.x - A.x, ABy = B.y - A.y;
@@ -491,7 +491,7 @@ function describeIntersectionFromObjects(pid, objects) {
 					const fallbackParents = [h1, h2].slice(0, 2);
 					addPointParentSkeleton(pid, `fallback ${fallbackParents.join(',')}`, fallbackParents, "intersection");
 				}
-				// we only need the first matching pair
+				// we only need the first matching pair			// TODO: keep looping if collinear
 				return pointDependencies[pid] || null;
 			}
 		}
