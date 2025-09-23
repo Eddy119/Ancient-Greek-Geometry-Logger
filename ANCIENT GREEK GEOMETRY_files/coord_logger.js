@@ -932,7 +932,7 @@ changes.replay = function() {
 
 // ---- redo: capture before/after and register pendingObject (so record will resolve it) ----
 const orig_redo = changes.redo;
-changes.redo = function() {
+changes.redo = function() { // TODO: there's some problems with pointdependencies coming back from redo, some are missing
     const beforeIds = snapshotPointIds();
     const r = orig_redo.apply(this, arguments);
     const afterIds = snapshotPointIds();
