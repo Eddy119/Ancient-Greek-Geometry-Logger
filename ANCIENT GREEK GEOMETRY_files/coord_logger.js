@@ -595,7 +595,7 @@ function exprIntersectLineLine(h1, h2) {
 
 	// quick helper
 function simp(expr) {
-	return Algebrite.simplify(expr).toString();
+	return `(${Algebrite.simplify(expr).toString()})`;
 }
 
 function exprArcArc(a, b, c, d, choice) {
@@ -604,24 +604,25 @@ function exprArcArc(a, b, c, d, choice) {
 	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
 	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
 	const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
+	// console.debug("exprArcArc", a, "A", b, ": ", ax, ay,",", bx, by, c, "A", d, ": ", cx, cy, ",", dx, dy);
 
 	// squared radii
-	const r1sq = `(((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2)`;
-	const r2sq = `(((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2)`;
+	const r1sq = simp(`(((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2)`);
+	const r2sq = simp(`(((${dx}) - (${cx}))^2 + ((${dy}) - (${cy}))^2)`);
 
 	// line between centers
-	const dxac = `((${cx}) - (${ax}))`;
-	const dyac = `((${cy}) - (${ay}))`;
-	const d2   = `((${dxac})^2 + (${dyac})^2)`;
+	const dxac = simp(`((${cx}) - (${ax}))`);
+	const dyac = simp(`((${cy}) - (${ay}))`);
+	const d2   = simp(`((${dxac})^2 + (${dyac})^2)`);
 
 	// base point along line connecting centers
-	const t  = `(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`;
-	const px = `((${ax}) + ((${t})*(${dxac})))`;
-	const py = `((${ay}) + ((${t})*(${dyac})))`;
+	const t  = simp(`(((${r1sq}) - (${r2sq}) + (${d2})) / (2*(${d2})))`);
+	const px = simp(`((${ax}) + ((${t})*(${dxac})))`);
+	const py = simp(`((${ay}) + ((${t})*(${dyac})))`);
 
 	// distance from base point to intersection
-	const hsq = `((${r1sq}) - ((${t})^2*(${d2})))`;
-	const h   = `(sqrt(${hsq}))`;
+	const hsq = simp(`((${r1sq}) - ((${t})^2*(${d2})))`);
+	const h   = simp(`(sqrt(${hsq}))`);
 
 	// perpendicular offset
 	const rx  = `(-(${dyac}))`;
