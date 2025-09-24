@@ -1,5 +1,7 @@
 # Ancient Greek Geometry Logger
 
+Symbolic logging not functional, current main issue is #25: For certain calculations involving quadratic surds (e.g. pentagon vertices with √5), the in-app symbolic simplifier (Algebrite) can produce very large expanded expressions such as $\frac{7985/4 + (3571/4)\sqrt{5}}{(2+\sqrt{5})^6}$ instead of the compact $\frac{5-\sqrt{5}}{4}$. This is algebraically correct but causes downstream string bloat, freezing the logger. See issue #25 for details, and suggested fixes by ChatGPT.
+
 [Issue #18](https://github.com/Eddy119/Ancient-Greek-Geometry-Logger/issues/18): you need to click on your unlocked shapes twice on the bottom right sidebar for log to load
 
 Logs info for constructions for https://sciencevsmagic.net/geo/ by Nico Disseldorp
