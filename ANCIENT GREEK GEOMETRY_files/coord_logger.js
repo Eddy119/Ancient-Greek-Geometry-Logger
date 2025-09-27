@@ -647,42 +647,51 @@ function exprArcArc(a, b, c, d, choice) {
 
 
 function exprArcLine(a, b, c, d, choice) {
-	// circle (a,b) ∩ line (c,d)
-	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
-	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
-	const cx = `${_getSymCoord(c, 'x')}`, cy = `${_getSymCoord(c, 'y')}`;
-	const dx_ = _getSymCoord(d, 'x'), dy_ = _getSymCoord(d, 'y');
+        // circle (a,b) ∩ line (c,d)
+        const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
+        const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
+        const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
+        const dx = _getSymCoord(d, 'x'), dy = _getSymCoord(d, 'y');
 
-	// radius squared
-	const r2 = `((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2`;
+        // radius squared
+        const r2 = simp(`(((${bx}) - (${ax}))^2 + ((${by}) - (${ay}))^2))`);
 
-	// line direction
-	const vx = `((${dx_}) - (${cx}))`, vy = `((${dy_}) - (${cy}))`;
+        // line direction and its squared magnitude
+        const vx = simp(`((${dx}) - (${cx}))`);
+        const vy = simp(`((${dy}) - (${cy}))`);
+        const v2 = simp(`((${vx})^2 + (${vy})^2)`);
 
-	// quadratic coefficients for intersection
-	const A = Algebrite.run(`simplify((${vx})^2 + (${vy})^2)`);
-	const B = Algebrite.run(`simplify(2*( ((${cx}) - (${ax}))*(${vx}) + ((${cy}) - (${ay}))*(${vy}) ))`);
-	const C = `(${cx} - ${ax})^2 + (${cy} - ${ay})^2 - (${r2})`;
+        // vector from line point to circle center
+        const wx = simp(`((${ax}) - (${cx}))`);
+        const wy = simp(`((${ay}) - (${cy}))`);
 
-	// IMPORTANT: fully parenthesize A and C when combining them
-	// determinant (discriminant)
-	const disc = `(${B})^2 - 4*(${A})*(${C})`;
-	const sqrtDisc = `sqrt(${disc})`;
+        // projection of the center onto the line
+        const dot = simp(`((${wx})*(${vx}) + (${wy})*(${vy}))`);
+        const tBase = simp(`((${dot}) / (${v2}))`);
+        const px = simp(`((${cx}) + ((${tBase})*(${vx})))`);
+        const py = simp(`((${cy}) + ((${tBase})*(${vy})))`);
 
-	// IMPORTANT: wrap numerator fully in parentheses to avoid premature simplification
-	let t;
-	if (choice === 0) {
-		t = `(((-1)*(${B})) + ${sqrtDisc}) / (2*(${A}))`;
-	} else {
-		t = `(((-1)*(${B})) - ${sqrtDisc}) / (2*(${A}))`;
-	}
+        // offset from projection to intersection magnitude
+        const dist2 = simp(`(((${px}) - (${ax}))^2 + ((${py}) - (${ay}))^2)`);
+        const hsq = simp(`((${r2}) - (${dist2}))`);
 
-	// console.debug('ARCLINE',ax,ay,bx,by,cx,cy,dx_,dy_);
-	// parenthesize t and vx/vy when multiplying, also wrap t in parentheses when used
-	const ix = `(${cx}) + ((${t})*(${vx}))`;
-	const iy = `(${cy}) + ((${t})*(${vy}))`;
+        // fold sqrt(v2) into the numerator to keep denominators polynomial in v2
+        const sqrtProduct = `sqrt((${hsq})*(${v2}))`;
+        const denom = `(${v2})`;
+        const deltaX = simp(`((${vx})*(${sqrtProduct})) / (${denom})`);
+        const deltaY = simp(`((${vy})*(${sqrtProduct})) / (${denom})`);
 
-	return { x: ix, y: iy };
+        // intersection points along the line direction
+        let ix, iy;
+        if (choice === 0) {
+                ix = `(${px}) + (${deltaX})`;
+                iy = `(${py}) + (${deltaY})`;
+        } else {
+                ix = `(${px}) - (${deltaX})`;
+                iy = `(${py}) - (${deltaY})`;
+        }
+
+        return { x: `(${ix})`, y: `(${iy})` };
 }
 
 function pointDependenciesFor(hash) {
