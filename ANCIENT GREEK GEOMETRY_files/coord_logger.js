@@ -599,7 +599,7 @@ function simp(expr) {
 }
 
 function exprArcArc(a, b, c, d, choice) {
-	// circle (a,b) ∩ circle (c,d)
+	// circle (a,b) intersect circle (c,d)
 	const ax = _getSymCoord(a, 'x'), ay = _getSymCoord(a, 'y');
 	const bx = _getSymCoord(b, 'x'), by = _getSymCoord(b, 'y');
 	const cx = _getSymCoord(c, 'x'), cy = _getSymCoord(c, 'y');
@@ -622,24 +622,29 @@ function exprArcArc(a, b, c, d, choice) {
 
 	// distance from base point to intersection
 	const hsq = simp(`((${r1sq}) - ((${t})^2*(${d2})))`);
-	const h   = simp(`(sqrt(${hsq}))`);
 
 	// perpendicular offset
 	const rx  = `(-(${dyac}))`;
 	const ry  = `(${dxac})`;
-	const mag = `(sqrt(${d2}))`;
+
+	// keep denominators free of square roots by folding sqrt(d2) into the numerator
+	const sqrtProduct = `sqrt((${hsq})*(${d2}))`;
+	const denom = `(${d2})`;
+	const deltaX = simp(`((${rx})*(${sqrtProduct})) / (${denom})`);
+	const deltaY = simp(`((${ry})*(${sqrtProduct})) / (${denom})`);
 
 	// intersection points
 	let ix, iy;
 	if (choice === 0) {
-		ix = `(${`((${px}) + ((${h})*(${rx})/(${mag})))`})`;
-		iy = `(${`((${py}) + ((${h})*(${ry})/(${mag})))`})`;
+		ix = `(${px}) + (${deltaX})`;
+		iy = `(${py}) + (${deltaY})`;
 	} else {
-		ix = `(${`((${px}) - ((${h})*(${rx})/(${mag})))`})`;
-		iy = `(${`((${py}) - ((${h})*(${ry})/(${mag})))`})`;
+		ix = `(${px}) - (${deltaX})`;
+		iy = `(${py}) - (${deltaY})`;
 	}
-	return { x: ix, y: iy };
+	return { x: `(${ix})`, y: `(${iy})` };
 }
+
 
 function exprArcLine(a, b, c, d, choice) {
 	// circle (a,b) ∩ line (c,d)
