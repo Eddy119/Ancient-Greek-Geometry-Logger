@@ -672,7 +672,8 @@ function exprArcLine(a, b, c, d, choice) {
         const py = simp(`((${cy}) + ((${tBase})*(${vy})))`);
 
         // offset from projection to intersection magnitude
-        const dist2 = simp(`(((${px}) - (${ax}))^2 + ((${py}) - (${ay}))^2)`);
+        // Use projection data directly so denominators stay polynomial in v².
+        const dist2 = simp(`(((${wx})^2 + (${wy})^2) - (((${dot})^2)/(${v2})))`);
         const hsq = simp(`((${r2}) - (${dist2}))`);
 
         // fold sqrt(v2) into the numerator to keep denominators polynomial in v2
