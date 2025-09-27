@@ -673,14 +673,14 @@ function exprArcLine(a, b, c, d, choice) {
 
         // offset from projection to intersection magnitude
         // Use projection data directly so denominators stay polynomial in v².
-        const dist2 = simp(`(((${wx})^2 + (${wy})^2) - (((${dot})^2)/(${v2})))`);
-        const hsq = simp(`((${r2}) - (${dist2}))`);
+        const distNumerator = simp(`(((${wx})^2 + (${wy})^2)*(${v2}) - ((${dot})^2))`);
+        const dist2 = `(${distNumerator}) / (${v2})`;
+        const hNumerator = simp(`((${r2})*(${v2}) - (${distNumerator}))`);
 
-        // fold sqrt(v2) into the numerator to keep denominators polynomial in v2
-        const sqrtProduct = `sqrt((${hsq})*(${v2}))`;
-        const denom = `(${v2})`;
-        const deltaX = simp(`((${vx})*(${sqrtProduct})) / (${denom})`);
-        const deltaY = simp(`((${vy})*(${sqrtProduct})) / (${denom})`);
+        // split numerator/denominator so Algebrite cannot reintroduce higher order 1/v² terms
+        const sqrtProduct = `sqrt(${hNumerator})`;
+        const deltaX = simp(`((${vx})*(${sqrtProduct})) / (${v2})`);
+        const deltaY = simp(`((${vy})*(${sqrtProduct})) / (${v2})`);
 
         // intersection points along the line direction
         let ix, iy;
